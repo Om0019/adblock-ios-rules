@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      25.0.0
+// @version      26.0.0
 // @description  Flawless multi-section handling (Most Recent + Uploaded), bulletproof infinite scroll, and bulk downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
@@ -346,7 +346,13 @@
                 
                 const btn = e.target;
                 btn.textContent = '✅ Copied!';
-                showToast(`✅ Copied ${urls.length} video links!`);
+                showToast(`✅ Copied ${urls.length} video links! Running Shortcut...`);
+                
+                // Trigger iOS Shortcut
+                setTimeout(() => {
+                    window.location.href = "shortcuts://run-shortcut?name=Download";
+                }, 100);
+
                 setTimeout(() => {
                     dock.querySelector('#xv-bulk-clear-btn').click();
                     btn.textContent = '🚀 Copy Links';
