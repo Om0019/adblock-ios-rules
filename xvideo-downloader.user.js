@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      19.0.0
+// @version      19.1.0
 // @description  Perfect mobile 2-column grid, highly visible selection checkboxes, infinite scroll, and 1-click bulk stream downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
@@ -129,7 +129,7 @@
             }
 
             /* Hide extra clutter */
-            .views, .added, .rating-container, .video-actions, .clearfix, .hd-thumbnail {
+            .views, .added, .rating-container, .video-actions, .hd-thumbnail {
                 display: none !important;
             }
         }
