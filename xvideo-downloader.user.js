@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         X-Video Tube Video Downloader & Model Video Search
+// @name         X-Video Tube Video Downloader, Floating Download & Model Search
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      5.0.0
-// @description  Mobile-optimized video downloader, direct stream extractor, and instant search filter for model video pages on x-video.tube
+// @version      6.0.0
+// @description  Floating download icons on video players & thumbnails, mobile-optimized action bar, direct stream extractor, and instant model search for x-video.tube
 // @author       Antigravity
 // @match        https://x-video.tube/*
 // @match        https://*.x-video.tube/*
@@ -21,7 +21,134 @@
 
     const STYLES = `
         /* =========================================
-           1. MODEL VIDEO SEARCH BAR STYLES
+           1. FLOATING PLAYER DOWNLOAD BUTTON
+           ========================================= */
+        .xv-player-float-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 99999;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border: 1.5px solid #e50914;
+            color: #ffffff !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+            transition: all 0.2s ease;
+            text-decoration: none !important;
+            padding: 0;
+            margin: 0;
+        }
+
+        .xv-player-float-btn:hover {
+            transform: scale(1.1);
+            background: #e50914;
+            box-shadow: 0 6px 16px rgba(229, 9, 20, 0.6);
+        }
+
+        .xv-player-float-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: #ffffff;
+            pointer-events: none;
+        }
+
+        /* Floating Button Mini Popup Menu */
+        .xv-player-float-menu {
+            display: none;
+            position: absolute;
+            top: 48px;
+            right: 0;
+            background: #181818;
+            border: 1px solid #333333;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.9);
+            z-index: 100000;
+            min-width: 170px;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .xv-player-float-menu.show {
+            display: block;
+        }
+
+        .xv-float-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #eeeeee !important;
+            text-decoration: none !important;
+            cursor: pointer;
+            border-bottom: 1px solid #262626;
+            transition: background 0.15s ease;
+        }
+
+        .xv-float-menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .xv-float-menu-item:hover {
+            background: #e50914;
+            color: #ffffff !important;
+        }
+
+        /* =========================================
+           2. THUMBNAIL FLOATING DOWNLOAD BADGE
+           ========================================= */
+        .item.thumb .img-holder {
+            position: relative !important;
+        }
+
+        .xv-thumb-download-badge {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            z-index: 10;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: rgba(15, 15, 15, 0.85);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgba(229, 9, 20, 0.8);
+            color: #ffffff !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+            transition: all 0.2s ease;
+            text-decoration: none !important;
+            opacity: 0.88;
+        }
+
+        .xv-thumb-download-badge:hover {
+            opacity: 1;
+            transform: scale(1.12);
+            background: #e50914;
+            border-color: #ffffff;
+        }
+
+        .xv-thumb-download-badge svg {
+            width: 14px;
+            height: 14px;
+            fill: #ffffff;
+            pointer-events: none;
+        }
+
+        /* =========================================
+           3. MODEL VIDEO SEARCH BAR
            ========================================= */
         .xv-model-search-container {
             width: 100%;
@@ -130,7 +257,7 @@
         }
 
         /* =========================================
-           2. VIDEO DOWNLOAD ACTION BAR STYLES
+           4. DEDICATED ACTION BAR STYLES
            ========================================= */
         .xv-action-bar {
             display: flex;
@@ -284,12 +411,165 @@
     }
 
     /* ==========================================================
+       VIDEO DATA EXTRACTION
+       ========================================================== */
+    function extractVideoData() {
+        const videoData = {
+            title: document.title.replace(/ - Free porn tube.*$/i, '').trim() || 'video',
+            url: null,
+            fhd: false
+        };
+
+        try {
+            if (window.player_obj && window.player_obj.conf) {
+                const conf = window.player_obj.conf;
+                if (conf.video_title) videoData.title = conf.video_title;
+                if (conf.video_url) videoData.url = conf.video_url;
+                if (conf.video_url_fhd) videoData.fhd = true;
+            }
+        } catch (e) {}
+
+        if (!videoData.url) {
+            const scripts = document.querySelectorAll('script:not([src])');
+            for (const script of scripts) {
+                const text = script.textContent;
+                if (text.includes('video_url')) {
+                    const urlMatch = text.match(/video_url:\s*['"]([^'"]+)['"]/);
+                    const titleMatch = text.match(/video_title:\s*['"]([^'"]+)['"]/);
+                    if (titleMatch && titleMatch[1]) videoData.title = titleMatch[1];
+                    if (urlMatch && urlMatch[1]) videoData.url = urlMatch[1];
+                    if (text.includes("video_url_fhd: '1'")) videoData.fhd = true;
+                    break;
+                }
+            }
+        }
+
+        if (!videoData.url) {
+            const videoEl = document.querySelector('video[src]');
+            if (videoEl) videoData.url = videoEl.src;
+        }
+
+        return videoData;
+    }
+
+    /* ==========================================================
+       FLOATING DOWNLOAD BUTTON ON VIDEO PLAYER
+       ========================================================== */
+    function initFloatingPlayerButton() {
+        if (document.getElementById('xv-floating-player-btn')) return;
+
+        const playerContainer = document.getElementById('kt_player') ||
+                                document.querySelector('.player-holder') ||
+                                document.querySelector('.player-wrap');
+
+        if (!playerContainer) return;
+
+        const data = extractVideoData();
+        if (!data.url) {
+            setTimeout(initFloatingPlayerButton, 800);
+            return;
+        }
+
+        injectStyles();
+
+        // Ensure parent has position relative for absolute positioning
+        const computedPosition = window.getComputedStyle(playerContainer).position;
+        if (computedPosition === 'static') {
+            playerContainer.style.position = 'relative';
+        }
+
+        const safeTitle = data.title.replace(/[/\\?%*:|"<>]/g, '_') + '.mp4';
+
+        const floatBtn = document.createElement('a');
+        floatBtn.className = 'xv-player-float-btn';
+        floatBtn.id = 'xv-floating-player-btn';
+        floatBtn.href = data.url;
+        floatBtn.download = safeTitle;
+        floatBtn.target = '_blank';
+        floatBtn.title = 'Download Video';
+        floatBtn.innerHTML = `
+            <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+        `;
+
+        floatBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showToast('⬇️ Starting MP4 download...');
+        });
+
+        playerContainer.appendChild(floatBtn);
+    }
+
+    /* ==========================================================
+       FLOATING DOWNLOAD BADGES ON VIDEO THUMBNAILS
+       ========================================================= */
+    function initThumbnailFloatingBadges() {
+        const thumbItems = document.querySelectorAll('.item.thumb:not(.xv-has-float-badge)');
+
+        thumbItems.forEach(item => {
+            const imgHolder = item.querySelector('.img-holder');
+            const videoLink = item.querySelector('a[href*="/video/"]');
+
+            if (!imgHolder || !videoLink) return;
+
+            item.classList.add('xv-has-float-badge');
+
+            const badge = document.createElement('div');
+            badge.className = 'xv-thumb-download-badge';
+            badge.title = 'Download / Copy video link';
+            badge.innerHTML = `
+                <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+            `;
+
+            badge.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const img = imgHolder.querySelector('img');
+                const previewSrc = img ? (img.getAttribute('data-preview') || img.getAttribute('src')) : null;
+                const targetHref = videoLink.getAttribute('href');
+                const fullPageUrl = targetHref.startsWith('http') ? targetHref : window.location.origin + targetHref;
+
+                showToast('⚡ Extracting video stream link...');
+
+                try {
+                    const res = await fetch(fullPageUrl);
+                    const html = await res.text();
+                    const urlMatch = html.match(/video_url:\s*['"]([^'"]+)['"]/);
+                    const titleMatch = html.match(/video_title:\s*['"]([^'"]+)['"]/);
+                    const title = (titleMatch && titleMatch[1]) ? titleMatch[1] : (videoLink.getAttribute('title') || 'video');
+
+                    if (urlMatch && urlMatch[1]) {
+                        const directUrl = urlMatch[1];
+                        const safeName = title.replace(/[/\\?%*:|"<>]/g, '_') + '.mp4';
+                        
+                        // Trigger download
+                        const a = document.createElement('a');
+                        a.href = directUrl;
+                        a.download = safeName;
+                        a.target = '_blank';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        showToast(`⬇️ Downloading: ${title.substring(0, 30)}...`);
+                    } else {
+                        throw new Error('Video stream not found');
+                    }
+                } catch (err) {
+                    console.warn('Could not extract direct stream, opening video page:', err);
+                    window.location.href = fullPageUrl;
+                }
+            });
+
+            imgHolder.appendChild(badge);
+        });
+    }
+
+    /* ==========================================================
        MODEL VIDEOS INSTANT SEARCH & MULTI-PAGE FETCHER
        ========================================================== */
     function initModelPageSearch() {
         if (document.getElementById('xv-model-search-box')) return;
 
-        // Target: #list_videos_common_videos_list or .thumbs container
         const listContainer = document.getElementById('list_videos_common_videos_list') ||
                               document.querySelector('.main_column .thumbs');
         if (!listContainer) return;
@@ -320,7 +600,6 @@
             </div>
         `;
 
-        // Insert before thumbs list (or right under heading)
         const heading = listContainer.querySelector('.heading');
         if (heading && heading.nextSibling) {
             heading.parentNode.insertBefore(searchContainer, heading.nextSibling);
@@ -367,7 +646,6 @@
             input.focus();
         });
 
-        // Load all pagination pages dynamically
         let isLoadingPages = false;
         loadAllBtn.addEventListener('click', async () => {
             if (isLoadingPages) return;
@@ -381,7 +659,6 @@
                 return;
             }
 
-            // Find all page links
             const links = Array.from(pagination.querySelectorAll('a[href]'))
                                .map(a => a.getAttribute('href'))
                                .filter(h => h && h.match(/\/videos\/\d+\//));
@@ -396,7 +673,6 @@
 
             let loaded = 0;
             const total = uniquePageHrefs.length;
-
             loadAllBtn.innerHTML = `<span>⏳ Loading 0/${total} pages...</span>`;
 
             for (const href of uniquePageHrefs) {
@@ -409,7 +685,6 @@
 
                     const newItems = doc.querySelectorAll('#list_videos_common_videos_list .thumbs__list .item.thumb--videos, .thumbs__list .item.thumb--videos');
                     newItems.forEach(item => {
-                        // Prevent duplicate IDs
                         const link = item.querySelector('a[href]');
                         if (link && !thumbsList.querySelector(`a[href="${link.getAttribute('href')}"]`)) {
                             thumbsList.appendChild(document.importNode(item, true));
@@ -426,6 +701,7 @@
             loadAllBtn.innerHTML = `<span>✅ All Pages Loaded (${thumbsList.querySelectorAll('.item.thumb--videos').length} total)</span>`;
             pagesInfo.textContent = `All ${total + 1} pages combined`;
             showToast(`✅ Loaded all videos! You can now search across every page.`);
+            initThumbnailFloatingBadges();
             filterVideos();
         });
     }
@@ -435,47 +711,8 @@
     }
 
     /* ==========================================================
-       VIDEO DOWNLOAD ACTION BAR (SINGLE VIDEO PAGES)
+       DEDICATED ACTION BAR (SINGLE VIDEO PAGES)
        ========================================================== */
-    function extractVideoData() {
-        const videoData = {
-            title: document.title.replace(/ - Free porn tube.*$/i, '').trim() || 'video',
-            url: null,
-            fhd: false
-        };
-
-        try {
-            if (window.player_obj && window.player_obj.conf) {
-                const conf = window.player_obj.conf;
-                if (conf.video_title) videoData.title = conf.video_title;
-                if (conf.video_url) videoData.url = conf.video_url;
-                if (conf.video_url_fhd) videoData.fhd = true;
-            }
-        } catch (e) {}
-
-        if (!videoData.url) {
-            const scripts = document.querySelectorAll('script:not([src])');
-            for (const script of scripts) {
-                const text = script.textContent;
-                if (text.includes('video_url')) {
-                    const urlMatch = text.match(/video_url:\s*['"]([^'"]+)['"]/);
-                    const titleMatch = text.match(/video_title:\s*['"]([^'"]+)['"]/);
-                    if (titleMatch && titleMatch[1]) videoData.title = titleMatch[1];
-                    if (urlMatch && urlMatch[1]) videoData.url = urlMatch[1];
-                    if (text.includes("video_url_fhd: '1'")) videoData.fhd = true;
-                    break;
-                }
-            }
-        }
-
-        if (!videoData.url) {
-            const videoEl = document.querySelector('video[src]');
-            if (videoEl) videoData.url = videoEl.src;
-        }
-
-        return videoData;
-    }
-
     function initVideoDownloadUI() {
         if (document.getElementById('xv-action-bar-container')) return;
 
@@ -492,7 +729,6 @@
 
         const safeTitle = data.title.replace(/[/\\?%*:|"<>]/g, '_') + '.mp4';
 
-        // 1. Unlock native site download icon
         const nativeDlBtn = infoBar.querySelector('a[title="Download"]');
         if (nativeDlBtn && !nativeDlBtn.classList.contains('xv-unlocked')) {
             nativeDlBtn.classList.add('xv-unlocked');
@@ -505,7 +741,6 @@
             });
         }
 
-        // 2. Insert mobile-responsive action bar
         const actionBar = document.createElement('div');
         actionBar.className = 'xv-action-bar';
         actionBar.id = 'xv-action-bar-container';
@@ -543,16 +778,26 @@
     }
 
     /* ==========================================================
-       MAIN RUNNER
+       MAIN INITIALIZER
        ========================================================== */
     function run() {
+        injectStyles();
+
+        // 1. Floating badges on all thumbnails
+        initThumbnailFloatingBadges();
+
+        // 2. Model page search
         if (location.pathname.includes('/models/') || document.getElementById('list_videos_common_videos_list')) {
             initModelPageSearch();
             setTimeout(initModelPageSearch, 800);
         }
+
+        // 3. Single video page download UI + Floating button on player
         if (location.pathname.includes('/video/') || document.getElementById('kt_player')) {
             initVideoDownloadUI();
-            setTimeout(initVideoDownloadUI, 800);
+            initFloatingPlayerButton();
+            setTimeout(initFloatingPlayerButton, 1000);
+            setTimeout(initFloatingPlayerButton, 2500);
         }
     }
 
@@ -564,6 +809,7 @@
 
     let last = location.href;
     new MutationObserver(() => {
+        initThumbnailFloatingBadges();
         if (location.href !== last) {
             last = location.href;
             run();
