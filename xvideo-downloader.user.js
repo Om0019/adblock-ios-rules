@@ -1,36 +1,148 @@
 // ==UserScript==
-// @name         Universal Video Downloader (1-Click Downie & Web MP4)
+// @name         Universal Video Downloader & Stream Sniffer
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      11.0.0
-// @description  Universal floating download button that extracts the ACTUAL video/m3u8 stream URL (not the webpage link) and feeds it to Downie / clipboard
+// @version      12.0.0
+// @description  Sniffs video streams (HLS/m3u8/mp4) in real-time via play events, network requests (fetch/XHR), and player hooks when you press play.
 // @author       Antigravity
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM.xmlHttpRequest
 // @grant        GM_setClipboard
-// @grant        GM_openInTab
 // @connect      *
-// @run-at       document-end
+// @run-at       document-start
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    if (window.self !== window.top) {
-        if (window.innerWidth < 120 || window.innerHeight < 120) return;
+    // Global Registry for live sniffed video streams on the active page
+    const capturedStreams = new Map(); // url -> { label, isHls, timestamp }
+
+    function addCapturedStream(url, hint = 'Video Stream') {
+        if (!url || typeof url !== 'string') return;
+        if (url.startsWith('blob:') || url.startsWith('data:')) return;
+
+        // Clean query artifacts or identify stream type
+        const isM3u8 = url.includes('.m3u8');
+        const isMp4 = url.includes('.mp4');
+        const isWebm = url.includes('.webm');
+        const isTs = url.includes('.ts');
+
+        // Ignore small individual TS fragments from cluttering the menu (we want the m3u8 playlist or mp4)
+        if (isTs && !isM3u8) return;
+
+        if (isM3u8 || isMp4 || isWebm || url.includes('/get_file/') || url.includes('phncdn.com') || url.includes('videoUrl')) {
+            let label = hint;
+            if (url.includes('1080P') || url.includes('1080p') || url.includes('1080')) label = '1080p (FHD)';
+            else if (url.includes('720P') || url.includes('720p') || url.includes('720')) label = '720p (HD)';
+            else if (url.includes('480P') || url.includes('480p') || url.includes('480')) label = '480p (SD)';
+            else if (url.includes('240P') || url.includes('240p')) label = '240p';
+            else if (isM3u8) label = 'Master HLS Stream';
+            else if (isMp4) label = 'Direct MP4 Stream';
+
+            if (!capturedStreams.has(url)) {
+                capturedStreams.set(url, { label, isHls: isM3u8, url });
+                console.log('[Stream Sniffer] Captured video stream:', label, url);
+                updateFloatingBadgeUI();
+            }
+        }
     }
 
+    /* ==========================================================
+       1. NETWORK SNIFFER: INTERCEPT FETCH & XHR
+       ========================================================== */
+    const originalFetch = window.fetch;
+    window.fetch = async function (...args) {
+        try {
+            const reqUrl = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : '');
+            addCapturedStream(reqUrl, 'Stream (Fetch)');
+        } catch (e) {}
+        return originalFetch.apply(this, args);
+    };
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+        try {
+            addCapturedStream(url, 'Stream (XHR)');
+        } catch (e) {}
+        return originalOpen.call(this, method, url, ...rest);
+    };
+
+    /* ==========================================================
+       2. MEDIA PLAYER SNIFFER: HTMLMediaElement HOOKS & PLAY EVENTS
+       ========================================================== */
+    function hookVideoElement(video) {
+        if (!video || video.dataset.xvSniffHooked === 'true') return;
+        video.dataset.xvSniffHooked = 'true';
+
+        function inspect() {
+            if (video.currentSrc) addCapturedStream(video.currentSrc, 'Active Player Stream');
+            if (video.src) addCapturedStream(video.src, 'Player Source');
+            const sources = video.querySelectorAll('source');
+            sources.forEach(s => {
+                if (s.src) addCapturedStream(s.src, s.getAttribute('label') || 'Source');
+            });
+        }
+
+        // When user presses PLAY or stream changes, capture immediately!
+        video.addEventListener('play', inspect);
+        video.addEventListener('playing', inspect);
+        video.addEventListener('loadedmetadata', inspect);
+        video.addEventListener('loadstart', inspect);
+        video.addEventListener('canplay', inspect);
+
+        inspect();
+    }
+
+    /* ==========================================================
+       3. SITE-SPECIFIC OBJECT EXTRACTORS
+       ========================================================== */
+    function scanPageObjects() {
+        // Pornhub flashvars
+        for (const key in window) {
+            if (key.startsWith('flashvars_') && window[key] && window[key].mediaDefinitions) {
+                const defs = window[key].mediaDefinitions || [];
+                defs.forEach(d => {
+                    if (d.videoUrl) addCapturedStream(d.videoUrl, d.quality ? `${d.quality}p` : 'HLS Stream');
+                });
+            }
+        }
+
+        // X-Video player_obj
+        if (window.player_obj && window.player_obj.conf) {
+            const conf = window.player_obj.conf;
+            if (conf.video_url) addCapturedStream(conf.video_url, conf.video_url_fhd ? '1080p FHD' : 'HD (MP4)');
+            if (conf.video_alt_url) addCapturedStream(conf.video_alt_url, 'SD (MP4)');
+        }
+
+        // Scan inline scripts
+        const scripts = document.querySelectorAll('script:not([src])');
+        for (const s of scripts) {
+            const text = s.textContent;
+            if (text.includes('mediaDefinitions') || text.includes('video_url')) {
+                const m3u8Matches = text.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/g);
+                if (m3u8Matches) m3u8Matches.forEach(u => addCapturedStream(u.replace(/\\/g, ''), 'HLS Master'));
+
+                const mp4Matches = text.match(/https?:\/\/[^"'\s]+\.mp4[^"'\s]*/g);
+                if (mp4Matches) mp4Matches.forEach(u => addCapturedStream(u.replace(/\\/g, ''), 'MP4 Stream'));
+            }
+        }
+    }
+
+    /* ==========================================================
+       4. FLOATING UI & BADGE
+       ========================================================== */
     const STYLES = `
-        .xv-universal-float-btn {
+        .xv-sniffer-float-btn {
             position: absolute !important;
             top: 14px !important;
             right: 14px !important;
             z-index: 2147483647 !important;
-            min-width: 42px !important;
+            min-width: 44px !important;
             height: 42px !important;
-            padding: 0 12px !important;
+            padding: 0 14px !important;
             border-radius: 24px !important;
-            background: rgba(18, 18, 18, 0.92) !important;
+            background: rgba(18, 18, 18, 0.94) !important;
             backdrop-filter: blur(8px) !important;
             -webkit-backdrop-filter: blur(8px) !important;
             border: 1.5px solid #e50914 !important;
@@ -38,37 +150,47 @@
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            gap: 6px !important;
+            gap: 7px !important;
             cursor: pointer !important;
-            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.85) !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.85) !important;
             transition: all 0.2s ease !important;
             text-decoration: none !important;
-            opacity: 0.94 !important;
+            opacity: 0.95 !important;
             pointer-events: auto !important;
             box-sizing: border-box !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
             font-size: 13px !important;
             font-weight: 700 !important;
-            overflow: hidden !important;
         }
 
-        .xv-universal-float-btn:hover {
-            opacity: 1 !important;
-            transform: scale(1.06) !important;
+        .xv-sniffer-float-btn.active-stream {
             background: #e50914 !important;
+            box-shadow: 0 0 16px rgba(229, 9, 20, 0.8) !important;
             border-color: #ffffff !important;
-            box-shadow: 0 6px 22px rgba(229, 9, 20, 0.65) !important;
         }
 
-        .xv-universal-float-btn svg {
-            width: 18px !important;
-            height: 18px !important;
+        .xv-sniffer-float-btn:hover {
+            transform: scale(1.06) !important;
+        }
+
+        .xv-sniffer-float-btn svg {
+            width: 17px !important;
+            height: 17px !important;
             fill: #ffffff !important;
             flex-shrink: 0 !important;
-            pointer-events: none !important;
         }
 
-        .xv-universal-quality-menu {
+        .xv-stream-count-badge {
+            background: #ffffff !important;
+            color: #e50914 !important;
+            font-size: 11px !important;
+            font-weight: 800 !important;
+            padding: 1px 6px !important;
+            border-radius: 10px !important;
+            margin-left: 2px !important;
+        }
+
+        .xv-sniffer-dropdown {
             display: none;
             position: absolute !important;
             top: 60px !important;
@@ -78,16 +200,27 @@
             border-radius: 8px !important;
             box-shadow: 0 12px 36px rgba(0, 0, 0, 0.95) !important;
             z-index: 2147483647 !important;
-            min-width: 250px !important;
+            min-width: 270px !important;
+            max-width: 90vw !important;
             overflow: hidden !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         }
 
-        .xv-universal-quality-menu.show {
+        .xv-sniffer-dropdown.show {
             display: block !important;
         }
 
-        .xv-quality-item {
+        .xv-dropdown-header {
+            padding: 10px 14px !important;
+            font-size: 11px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            color: #888888 !important;
+            border-bottom: 1px solid #242424 !important;
+            background: #181818 !important;
+        }
+
+        .xv-dropdown-item {
             display: flex !important;
             align-items: center !important;
             justify-content: space-between !important;
@@ -101,16 +234,16 @@
             transition: background 0.15s ease !important;
         }
 
-        .xv-quality-item:last-child {
+        .xv-dropdown-item:last-child {
             border-bottom: none !important;
         }
 
-        .xv-quality-item:hover {
+        .xv-dropdown-item:hover {
             background: #e50914 !important;
             color: #ffffff !important;
         }
 
-        .xv-quality-item span.action-hint {
+        .xv-dropdown-item span.action-hint {
             font-size: 11px !important;
             opacity: 0.85 !important;
             background: rgba(0,0,0,0.35) !important;
@@ -146,9 +279,9 @@
     `;
 
     function injectStyles() {
-        if (document.getElementById('xv-universal-styles')) return;
+        if (document.getElementById('xv-sniffer-styles')) return;
         const style = document.createElement('style');
-        style.id = 'xv-universal-styles';
+        style.id = 'xv-sniffer-styles';
         style.textContent = STYLES;
         (document.head || document.documentElement).appendChild(style);
     }
@@ -183,147 +316,96 @@
         return true;
     }
 
-    // Send the direct raw video stream URL (not webpage) to Downie
-    function sendStreamToDownie(rawStreamUrl) {
-        if (!rawStreamUrl) {
-            showToast('⚠️ No direct video stream URL found yet.');
+    function updateFloatingBadgeUI() {
+        const btn = document.querySelector('.xv-sniffer-float-btn');
+        if (!btn) return;
+
+        const count = capturedStreams.size;
+        let badge = btn.querySelector('.xv-stream-count-badge');
+        let label = btn.querySelector('.xv-btn-label');
+
+        if (count > 0) {
+            btn.classList.add('active-stream');
+            if (label) label.textContent = 'Download';
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'xv-stream-count-badge';
+                btn.appendChild(badge);
+            }
+            badge.textContent = count;
+        }
+    }
+
+    function renderDropdown(menu) {
+        const streams = Array.from(capturedStreams.values());
+
+        if (streams.length === 0) {
+            menu.innerHTML = `
+                <div class="xv-dropdown-header">Stream Status</div>
+                <div class="xv-dropdown-item" style="cursor: default; opacity: 0.7;">
+                    <span>▶️ Press Play on video to sniff stream...</span>
+                </div>
+            `;
             return;
         }
-        showToast('🚀 Sending direct video stream URL to Downie...');
-        window.location.href = `downie://${rawStreamUrl}`;
-    }
 
-    function extractPornhubData() {
-        if (!location.hostname.includes('pornhub.com')) return null;
+        let html = `<div class="xv-dropdown-header">Captured Streams (${streams.length})</div>`;
 
-        const results = {
-            title: document.title.replace(/ - Pornhub\.com.*$/i, '').trim(),
-            sources: []
-        };
+        // 1. Open Highest Resolution Stream in Downie
+        const bestStream = streams[0].url;
+        html += `
+            <div class="xv-dropdown-item xv-downie-item" data-stream-url="${bestStream}">
+                <span>🚀 Send Stream to Downie</span>
+                <span class="action-hint">Direct Video</span>
+            </div>
+        `;
 
-        // 1. Check window.flashvars_*
-        for (const key in window) {
-            if (key.startsWith('flashvars_') && window[key] && window[key].mediaDefinitions) {
-                const fv = window[key];
-                if (fv.video_title) results.title = fv.video_title;
-                const defs = fv.mediaDefinitions || [];
-
-                defs.forEach(d => {
-                    if (d.videoUrl && (d.format === 'hls' || d.format === 'mp4')) {
-                        const quality = d.quality ? `${d.quality}p` : (d.height ? `${d.height}p` : d.format.toUpperCase());
-                        results.sources.push({
-                            label: `${quality} (${d.format.toUpperCase()})`,
-                            url: d.videoUrl,
-                            isHls: d.format === 'hls'
-                        });
-                    }
-                });
-                break;
-            }
-        }
-
-        // 2. Scan inline scripts for flashvars if window variable is sandboxed
-        if (results.sources.length === 0) {
-            const scripts = document.querySelectorAll('script:not([src])');
-            for (const s of scripts) {
-                const text = s.textContent;
-                if (text.includes('mediaDefinitions') && text.includes('flashvars_')) {
-                    const mediaMatch = text.match(/"mediaDefinitions"\s*:\s*(\[[^\]]+\])/);
-                    const titleMatch = text.match(/"video_title"\s*:\s*"([^"]+)"/);
-                    if (titleMatch) results.title = titleMatch[1];
-                    if (mediaMatch) {
-                        try {
-                            const defs = JSON.parse(mediaMatch[1]);
-                            defs.forEach(d => {
-                                if (d.videoUrl) {
-                                    const quality = d.quality ? `${d.quality}p` : (d.height ? `${d.height}p` : 'HD');
-                                    results.sources.push({
-                                        label: `${quality} (${(d.format || 'HLS').toUpperCase()})`,
-                                        url: d.videoUrl,
-                                        isHls: d.format === 'hls'
-                                    });
-                                }
-                            });
-                        } catch (e) {}
-                    }
-                    break;
-                }
-            }
-        }
-
-        // Sort so highest resolution (1080p -> 720p -> 480p) is first
-        results.sources.sort((a, b) => {
-            const qa = parseInt(a.label, 10) || 0;
-            const qb = parseInt(b.label, 10) || 0;
-            return qb - qa;
+        // 2. List all detected quality streams
+        streams.forEach(s => {
+            html += `
+                <div class="xv-dropdown-item xv-stream-row" data-stream-url="${s.url}" data-hls="${s.isHls}">
+                    <span>${s.label}</span>
+                    <span class="action-hint">${s.isHls ? '📋 Copy Stream' : '⬇️ Download MP4'}</span>
+                </div>
+            `;
         });
 
-        return results.sources.length > 0 ? results : null;
+        menu.innerHTML = html;
+
+        menu.querySelector('.xv-downie-item').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const rawUrl = menu.querySelector('.xv-downie-item').getAttribute('data-stream-url');
+            showToast('🚀 Sending direct video stream URL to Downie...');
+            window.location.href = `downie://${rawUrl}`;
+            menu.classList.remove('show');
+        });
+
+        menu.querySelectorAll('.xv-stream-row').forEach(row => {
+            row.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const rawUrl = row.getAttribute('data-stream-url');
+                const isHls = row.getAttribute('data-hls') === 'true';
+
+                if (isHls) {
+                    copyToClipboard(rawUrl);
+                    showToast(`📋 Copied raw ${row.querySelector('span').textContent} stream URL!`);
+                } else {
+                    const a = document.createElement('a');
+                    a.href = rawUrl;
+                    a.download = (document.title || 'video').replace(/[/\\?%*:|"<>]/g, '_') + '.mp4';
+                    a.target = '_blank';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    showToast('⬇️ Starting direct MP4 download...');
+                }
+                menu.classList.remove('show');
+            });
+        });
     }
 
-    function extractXVideoData() {
-        if (!location.hostname.includes('x-video.tube')) return null;
-
-        const results = {
-            title: document.title.replace(/ - Free porn tube.*$/i, '').trim(),
-            sources: []
-        };
-
-        try {
-            if (window.player_obj && window.player_obj.conf) {
-                const conf = window.player_obj.conf;
-                if (conf.video_title) results.title = conf.video_title;
-                if (conf.video_url) {
-                    results.sources.push({
-                        label: conf.video_url_fhd ? '1080p FHD (MP4)' : 'HD (MP4)',
-                        url: conf.video_url,
-                        isHls: false
-                    });
-                }
-                if (conf.video_alt_url) {
-                    results.sources.push({
-                        label: 'SD Quality (MP4)',
-                        url: conf.video_alt_url,
-                        isHls: false
-                    });
-                }
-            }
-        } catch (e) {}
-
-        if (results.sources.length === 0) {
-            const scripts = document.querySelectorAll('script:not([src])');
-            for (const s of scripts) {
-                const text = s.textContent;
-                if (text.includes('video_url')) {
-                    const urlMatch = text.match(/video_url:\s*['"]([^'"]+)['"]/);
-                    const titleMatch = text.match(/video_title:\s*['"]([^'"]+)['"]/);
-                    if (titleMatch) results.title = titleMatch[1];
-                    if (urlMatch) {
-                        results.sources.push({
-                            label: text.includes("video_url_fhd: '1'") ? '1080p FHD (MP4)' : 'HD (MP4)',
-                            url: urlMatch[1],
-                            isHls: false
-                        });
-                    }
-                    break;
-                }
-            }
-        }
-
-        return results.sources.length > 0 ? results : null;
-    }
-
-    function getGenericVideoSource(videoEl) {
-        if (!videoEl) return null;
-        const src = videoEl.currentSrc || videoEl.src;
-        if (src && !src.startsWith('blob:')) {
-            return [{ label: 'Direct Stream', url: src, isHls: src.includes('.m3u8') }];
-        }
-        return null;
-    }
-
-    function attachFloatingButton(targetContainer, videoData) {
-        if (!targetContainer || targetContainer.querySelector('.xv-universal-float-btn')) return;
+    function attachFloatingButton(targetContainer) {
+        if (!targetContainer || targetContainer.querySelector('.xv-sniffer-float-btn')) return;
 
         injectStyles();
 
@@ -333,97 +415,21 @@
         }
 
         const btn = document.createElement('div');
-        btn.className = 'xv-universal-float-btn';
+        btn.className = 'xv-sniffer-float-btn';
         btn.innerHTML = `
             <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
-            <span>Download</span>
+            <span class="xv-btn-label">Waiting for Play...</span>
         `;
 
         const menu = document.createElement('div');
-        menu.className = 'xv-universal-quality-menu';
-
-        function updateMenu(sources, title) {
-            const bestStreamUrl = sources.length > 0 ? sources[0].url : '';
-
-            let html = `
-                <div class="xv-quality-item xv-downie-item" data-best-url="${bestStreamUrl}">
-                    <span>🚀 Open Stream in Downie</span>
-                    <span class="action-hint">Direct Video</span>
-                </div>
-            `;
-
-            sources.forEach(s => {
-                html += `
-                    <div class="xv-quality-item" data-url="${s.url}" data-hls="${s.isHls}">
-                        <span>${s.label}</span>
-                        <span class="action-hint">${s.isHls ? '📋 Copy Stream URL' : '⬇️ Download MP4'}</span>
-                    </div>
-                `;
-            });
-
-            menu.innerHTML = html;
-
-            // 1. Send the ACTUAL raw video stream to Downie (not location.href)
-            menu.querySelector('.xv-downie-item').addEventListener('click', (e) => {
-                e.stopPropagation();
-                const streamToOpen = menu.querySelector('.xv-downie-item').getAttribute('data-best-url');
-                sendStreamToDownie(streamToOpen);
-                menu.classList.remove('show');
-            });
-
-            // 2. Stream items click (copies raw stream URL or downloads MP4)
-            menu.querySelectorAll('.xv-quality-item[data-url]').forEach(item => {
-                item.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const directVideoUrl = item.getAttribute('data-url');
-                    const isHls = item.getAttribute('data-hls') === 'true';
-
-                    if (isHls) {
-                        copyToClipboard(directVideoUrl);
-                        showToast(`📋 Copied raw ${item.querySelector('span').textContent} stream URL!`);
-                    } else {
-                        const a = document.createElement('a');
-                        a.href = directVideoUrl;
-                        a.download = (title || 'video') + '.mp4';
-                        a.target = '_blank';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        showToast('⬇️ Starting direct MP4 download...');
-                    }
-                    menu.classList.remove('show');
-                });
-            });
-        }
+        menu.className = 'xv-sniffer-dropdown';
 
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
 
-            let currentSources = [];
-            let currentTitle = document.title;
-
-            const ph = extractPornhubData();
-            const xv = extractXVideoData();
-
-            if (ph && ph.sources.length > 0) {
-                currentSources = ph.sources;
-                currentTitle = ph.title;
-            } else if (xv && xv.sources.length > 0) {
-                currentSources = xv.sources;
-                currentTitle = xv.title;
-            } else {
-                const videoEl = targetContainer.querySelector('video') || targetContainer;
-                const gen = getGenericVideoSource(videoEl);
-                if (gen) currentSources = gen;
-            }
-
-            if (currentSources.length === 0) {
-                showToast('⚠️ Searching video stream...');
-                return;
-            }
-
-            updateMenu(currentSources, currentTitle);
+            scanPageObjects();
+            renderDropdown(menu);
             menu.classList.toggle('show');
         });
 
@@ -431,47 +437,51 @@
 
         targetContainer.appendChild(btn);
         targetContainer.appendChild(menu);
+        updateFloatingBadgeUI();
     }
 
-    function scanAndAttach() {
+    /* ==========================================================
+       5. CONTINUOUS RUNNER & SCANNER
+       ========================================================== */
+    function run() {
+        injectStyles();
+        scanPageObjects();
+
+        // Pornhub Player Container
         const phPlayer = document.getElementById('player') ||
                          document.querySelector('.player-container') ||
                          document.querySelector('.mgp_container');
-        if (phPlayer && location.hostname.includes('pornhub.com')) {
-            const phData = extractPornhubData();
-            attachFloatingButton(phPlayer, phData);
-        }
+        if (phPlayer) attachFloatingButton(phPlayer);
 
+        // X-Video Tube Player Container
         const xvPlayer = document.getElementById('kt_player') ||
                          document.querySelector('.player-holder');
-        if (xvPlayer && location.hostname.includes('x-video.tube')) {
-            const xvData = extractXVideoData();
-            attachFloatingButton(xvPlayer, xvData);
-        }
+        if (xvPlayer) attachFloatingButton(xvPlayer);
 
+        // All HTML5 Video tags
         const videos = document.querySelectorAll('video');
         videos.forEach(v => {
+            hookVideoElement(v);
             if (v.offsetWidth > 100 || v.offsetHeight > 80 || v.readyState > 0 || !v.offsetWidth) {
                 let container = v.parentElement;
                 if (container && container.offsetWidth < 60 && container.parentElement) {
                     container = container.parentElement;
                 }
-                if (container && !container.querySelector('.xv-universal-float-btn')) {
-                    const sources = getGenericVideoSource(v);
-                    attachFloatingButton(container, { title: document.title, sources: sources || [] });
+                if (container && !container.querySelector('.xv-sniffer-float-btn')) {
+                    attachFloatingButton(container);
                 }
             }
         });
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', scanAndAttach);
+        document.addEventListener('DOMContentLoaded', run);
     } else {
-        scanAndAttach();
+        run();
     }
 
-    const observer = new MutationObserver(scanAndAttach);
+    const observer = new MutationObserver(run);
     observer.observe(document.documentElement, { childList: true, subtree: true });
-    setInterval(scanAndAttach, 2000);
+    setInterval(run, 1500);
 
 })();
