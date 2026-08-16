@@ -1,0 +1,52 @@
+[Adblock Plus 2.0]
+! Title: X-Video Tube & Network AdBlock Filter
+! Description: EasyList-compatible filter subscription for blocking ads, pre-rolls, popunders, and trackers on x-video.tube
+! Homepage: https://github.com/Om0019/adblock-ios-rules
+! Version: 1.0.0
+! Last modified: 2026-08-15
+! Expires: 4 days
+
+! ========================================
+! 1. Network / Request Blocking Rules
+! ========================================
+
+! --- ExoClick / MagSrv Banner & Player Ad Networks ---
+||magsrv.com^$third-party
+||happyleafmotion.com^$third-party
+||exacdn.com^$third-party
+
+! --- Push Notifications & Popunder Scripts ---
+||gmxes.com^$third-party
+
+! --- VAST Pre-roll Video Ad Delivery ---
+||awdeliverynet.com^$third-party
+
+! --- Smartpop / Redirect / Clickout Networks ---
+||mayzaent.com^$third-party
+||eunow4u.com^$third-party
+||gentlefieldpattern.com^$third-party
+||aaaconnect.info^$third-party
+
+! --- Analytics & Tracking Telemetry ---
+||counter.yadro.ru^$third-party
+||liveinternet.ru^$third-party
+||mc.yandex.ru^$third-party
+
+
+! ========================================
+! 2. Cosmetic & Element Hiding Rules
+! ========================================
+
+! --- Top Promo Floating Banners & Category Spams ---
+x-video.tube##.xv-topbar-flare-final
+x-video.tube##.top-sites-bar
+x-video.tube##.tg-holder
+
+! --- Navigation Menu Ad / Fake Login Buttons ---
+x-video.tube##li.clkbat
+x-video.tube##a.tablink[href*="mayzaent.com"]
+x-video.tube##a[href*="gentlefieldpattern.com"]
+x-video.tube##a[href*="eunow4u.com"]
+
+! --- Premium Notification Overlays & Modals ---
+x-video.tube##.fancybox-overlay-fixed
