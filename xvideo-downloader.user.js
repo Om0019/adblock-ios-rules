@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Universal Video Downloader & Stream Sniffer
+// @name         Universal Video Downloader & Stream Sniffer (With Referer & Headers)
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      12.0.0
-// @description  Sniffs video streams (HLS/m3u8/mp4) in real-time via play events, network requests (fetch/XHR), and player hooks when you press play.
+// @version      13.0.0
+// @description  Sniffs video streams in real-time and attaches exact Referer/Origin headers for Downie, yt-dlp, curl, and browser downloaders.
 // @author       Antigravity
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
@@ -15,20 +15,21 @@
 (function () {
     'use strict';
 
-    // Global Registry for live sniffed video streams on the active page
-    const capturedStreams = new Map(); // url -> { label, isHls, timestamp }
+    if (window.self !== window.top) {
+        if (window.innerWidth < 120 || window.innerHeight < 120) return;
+    }
+
+    const capturedStreams = new Map(); // url -> { label, isHls, url, referer, origin }
 
     function addCapturedStream(url, hint = 'Video Stream') {
         if (!url || typeof url !== 'string') return;
         if (url.startsWith('blob:') || url.startsWith('data:')) return;
 
-        // Clean query artifacts or identify stream type
         const isM3u8 = url.includes('.m3u8');
         const isMp4 = url.includes('.mp4');
         const isWebm = url.includes('.webm');
         const isTs = url.includes('.ts');
 
-        // Ignore small individual TS fragments from cluttering the menu (we want the m3u8 playlist or mp4)
         if (isTs && !isM3u8) return;
 
         if (isM3u8 || isMp4 || isWebm || url.includes('/get_file/') || url.includes('phncdn.com') || url.includes('videoUrl')) {
@@ -40,16 +41,19 @@
             else if (isM3u8) label = 'Master HLS Stream';
             else if (isMp4) label = 'Direct MP4 Stream';
 
+            const referer = location.href;
+            const origin = location.origin;
+
             if (!capturedStreams.has(url)) {
-                capturedStreams.set(url, { label, isHls: isM3u8, url });
-                console.log('[Stream Sniffer] Captured video stream:', label, url);
+                capturedStreams.set(url, { label, isHls: isM3u8, url, referer, origin });
+                console.log('[Stream Sniffer] Captured stream with Referer:', label, url, 'Referer:', referer);
                 updateFloatingBadgeUI();
             }
         }
     }
 
     /* ==========================================================
-       1. NETWORK SNIFFER: INTERCEPT FETCH & XHR
+       1. NETWORK INTERCEPTORS (fetch & XHR)
        ========================================================== */
     const originalFetch = window.fetch;
     window.fetch = async function (...args) {
@@ -69,7 +73,7 @@
     };
 
     /* ==========================================================
-       2. MEDIA PLAYER SNIFFER: HTMLMediaElement HOOKS & PLAY EVENTS
+       2. VIDEO PLAYER EVENT HOOKS
        ========================================================== */
     function hookVideoElement(video) {
         if (!video || video.dataset.xvSniffHooked === 'true') return;
@@ -84,7 +88,6 @@
             });
         }
 
-        // When user presses PLAY or stream changes, capture immediately!
         video.addEventListener('play', inspect);
         video.addEventListener('playing', inspect);
         video.addEventListener('loadedmetadata', inspect);
@@ -95,10 +98,9 @@
     }
 
     /* ==========================================================
-       3. SITE-SPECIFIC OBJECT EXTRACTORS
+       3. SITE OBJECT SCANNER
        ========================================================== */
     function scanPageObjects() {
-        // Pornhub flashvars
         for (const key in window) {
             if (key.startsWith('flashvars_') && window[key] && window[key].mediaDefinitions) {
                 const defs = window[key].mediaDefinitions || [];
@@ -108,14 +110,12 @@
             }
         }
 
-        // X-Video player_obj
         if (window.player_obj && window.player_obj.conf) {
             const conf = window.player_obj.conf;
             if (conf.video_url) addCapturedStream(conf.video_url, conf.video_url_fhd ? '1080p FHD' : 'HD (MP4)');
             if (conf.video_alt_url) addCapturedStream(conf.video_alt_url, 'SD (MP4)');
         }
 
-        // Scan inline scripts
         const scripts = document.querySelectorAll('script:not([src])');
         for (const s of scripts) {
             const text = s.textContent;
@@ -130,7 +130,7 @@
     }
 
     /* ==========================================================
-       4. FLOATING UI & BADGE
+       4. UI & STYLES
        ========================================================== */
     const STYLES = `
         .xv-sniffer-float-btn {
@@ -200,7 +200,7 @@
             border-radius: 8px !important;
             box-shadow: 0 12px 36px rgba(0, 0, 0, 0.95) !important;
             z-index: 2147483647 !important;
-            min-width: 270px !important;
+            min-width: 290px !important;
             max-width: 90vw !important;
             overflow: hidden !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
@@ -351,35 +351,55 @@
 
         let html = `<div class="xv-dropdown-header">Captured Streams (${streams.length})</div>`;
 
-        // 1. Open Highest Resolution Stream in Downie
-        const bestStream = streams[0].url;
+        // 1. Send stream with Referer to Downie
+        const bestStream = streams[0];
+        // Downie supports passing headers or webpage referer: downie://url?referer=...
+        const encodedDownieUrl = `downie://${bestStream.url}?referer=${encodeURIComponent(bestStream.referer)}`;
+
         html += `
-            <div class="xv-dropdown-item xv-downie-item" data-stream-url="${bestStream}">
-                <span>🚀 Send Stream to Downie</span>
-                <span class="action-hint">Direct Video</span>
+            <div class="xv-dropdown-item xv-downie-item" data-downie-url="${encodedDownieUrl}">
+                <span>🚀 Send to Downie (+ Referer)</span>
+                <span class="action-hint">1-Click App</span>
+            </div>
+            <div class="xv-dropdown-item xv-copy-ytdlp-item" data-stream-url="${bestStream.url}" data-referer="${bestStream.referer}">
+                <span>⚡ Copy yt-dlp Command</span>
+                <span class="action-hint">Full Headers</span>
             </div>
         `;
 
-        // 2. List all detected quality streams
+        // 2. List all detected quality streams with Copy Stream Link
         streams.forEach(s => {
             html += `
-                <div class="xv-dropdown-item xv-stream-row" data-stream-url="${s.url}" data-hls="${s.isHls}">
+                <div class="xv-dropdown-item xv-stream-row" data-stream-url="${s.url}" data-referer="${s.referer}" data-hls="${s.isHls}">
                     <span>${s.label}</span>
-                    <span class="action-hint">${s.isHls ? '📋 Copy Stream' : '⬇️ Download MP4'}</span>
+                    <span class="action-hint">${s.isHls ? '📋 Copy HLS' : '⬇️ Download MP4'}</span>
                 </div>
             `;
         });
 
         menu.innerHTML = html;
 
+        // Downie Click Handler
         menu.querySelector('.xv-downie-item').addEventListener('click', (e) => {
             e.stopPropagation();
-            const rawUrl = menu.querySelector('.xv-downie-item').getAttribute('data-stream-url');
-            showToast('🚀 Sending direct video stream URL to Downie...');
-            window.location.href = `downie://${rawUrl}`;
+            const downieUri = menu.querySelector('.xv-downie-item').getAttribute('data-downie-url');
+            showToast('🚀 Sending direct video stream + Referer to Downie...');
+            window.location.href = downieUri;
             menu.classList.remove('show');
         });
 
+        // yt-dlp Command Copy Handler
+        menu.querySelector('.xv-copy-ytdlp-item').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const rawUrl = menu.querySelector('.xv-copy-ytdlp-item').getAttribute('data-stream-url');
+            const ref = menu.querySelector('.xv-copy-ytdlp-item').getAttribute('data-referer');
+            const cmd = `yt-dlp --referer "${ref}" "${rawUrl}"`;
+            copyToClipboard(cmd);
+            showToast('📋 Copied full yt-dlp command with Referer header!');
+            menu.classList.remove('show');
+        });
+
+        // Stream Row Click Handler
         menu.querySelectorAll('.xv-stream-row').forEach(row => {
             row.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -440,25 +460,19 @@
         updateFloatingBadgeUI();
     }
 
-    /* ==========================================================
-       5. CONTINUOUS RUNNER & SCANNER
-       ========================================================== */
     function run() {
         injectStyles();
         scanPageObjects();
 
-        // Pornhub Player Container
         const phPlayer = document.getElementById('player') ||
                          document.querySelector('.player-container') ||
                          document.querySelector('.mgp_container');
         if (phPlayer) attachFloatingButton(phPlayer);
 
-        // X-Video Tube Player Container
         const xvPlayer = document.getElementById('kt_player') ||
                          document.querySelector('.player-holder');
         if (xvPlayer) attachFloatingButton(xvPlayer);
 
-        // All HTML5 Video tags
         const videos = document.querySelectorAll('video');
         videos.forEach(v => {
             hookVideoElement(v);
