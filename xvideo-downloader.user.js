@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Universal Video Downloader (1-Click Downie & Web MP4)
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      10.0.0
-// @description  Universal floating download button with 1-click Downie auto-launch, Web MP4 converter, and HLS stream extractor (Pornhub, X-Video, tube sites, streaming)
+// @version      11.0.0
+// @description  Universal floating download button that extracts the ACTUAL video/m3u8 stream URL (not the webpage link) and feeds it to Downie / clipboard
 // @author       Antigravity
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
@@ -78,7 +78,7 @@
             border-radius: 8px !important;
             box-shadow: 0 12px 36px rgba(0, 0, 0, 0.95) !important;
             z-index: 2147483647 !important;
-            min-width: 230px !important;
+            min-width: 250px !important;
             overflow: hidden !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         }
@@ -183,16 +183,14 @@
         return true;
     }
 
-    function sendToDownie(url) {
-        const targetUrl = url || location.href;
-        showToast('🚀 Launching Downie for full-speed 1080p download...');
-        window.location.href = `downie://${targetUrl}`;
-    }
-
-    function openInCobalt(url) {
-        const targetUrl = encodeURIComponent(url || location.href);
-        showToast('🌐 Opening in Web MP4 Converter...');
-        window.open(`https://cobalt.tools/#${targetUrl}`, '_blank');
+    // Send the direct raw video stream URL (not webpage) to Downie
+    function sendStreamToDownie(rawStreamUrl) {
+        if (!rawStreamUrl) {
+            showToast('⚠️ No direct video stream URL found yet.');
+            return;
+        }
+        showToast('🚀 Sending direct video stream URL to Downie...');
+        window.location.href = `downie://${rawStreamUrl}`;
     }
 
     function extractPornhubData() {
@@ -203,6 +201,7 @@
             sources: []
         };
 
+        // 1. Check window.flashvars_*
         for (const key in window) {
             if (key.startsWith('flashvars_') && window[key] && window[key].mediaDefinitions) {
                 const fv = window[key];
@@ -222,6 +221,42 @@
                 break;
             }
         }
+
+        // 2. Scan inline scripts for flashvars if window variable is sandboxed
+        if (results.sources.length === 0) {
+            const scripts = document.querySelectorAll('script:not([src])');
+            for (const s of scripts) {
+                const text = s.textContent;
+                if (text.includes('mediaDefinitions') && text.includes('flashvars_')) {
+                    const mediaMatch = text.match(/"mediaDefinitions"\s*:\s*(\[[^\]]+\])/);
+                    const titleMatch = text.match(/"video_title"\s*:\s*"([^"]+)"/);
+                    if (titleMatch) results.title = titleMatch[1];
+                    if (mediaMatch) {
+                        try {
+                            const defs = JSON.parse(mediaMatch[1]);
+                            defs.forEach(d => {
+                                if (d.videoUrl) {
+                                    const quality = d.quality ? `${d.quality}p` : (d.height ? `${d.height}p` : 'HD');
+                                    results.sources.push({
+                                        label: `${quality} (${(d.format || 'HLS').toUpperCase()})`,
+                                        url: d.videoUrl,
+                                        isHls: d.format === 'hls'
+                                    });
+                                }
+                            });
+                        } catch (e) {}
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Sort so highest resolution (1080p -> 720p -> 480p) is first
+        results.sources.sort((a, b) => {
+            const qa = parseInt(a.label, 10) || 0;
+            const qb = parseInt(b.label, 10) || 0;
+            return qb - qa;
+        });
 
         return results.sources.length > 0 ? results : null;
     }
@@ -245,8 +280,35 @@
                         isHls: false
                     });
                 }
+                if (conf.video_alt_url) {
+                    results.sources.push({
+                        label: 'SD Quality (MP4)',
+                        url: conf.video_alt_url,
+                        isHls: false
+                    });
+                }
             }
         } catch (e) {}
+
+        if (results.sources.length === 0) {
+            const scripts = document.querySelectorAll('script:not([src])');
+            for (const s of scripts) {
+                const text = s.textContent;
+                if (text.includes('video_url')) {
+                    const urlMatch = text.match(/video_url:\s*['"]([^'"]+)['"]/);
+                    const titleMatch = text.match(/video_title:\s*['"]([^'"]+)['"]/);
+                    if (titleMatch) results.title = titleMatch[1];
+                    if (urlMatch) {
+                        results.sources.push({
+                            label: text.includes("video_url_fhd: '1'") ? '1080p FHD (MP4)' : 'HD (MP4)',
+                            url: urlMatch[1],
+                            isHls: false
+                        });
+                    }
+                    break;
+                }
+            }
+        }
 
         return results.sources.length > 0 ? results : null;
     }
@@ -281,14 +343,12 @@
         menu.className = 'xv-universal-quality-menu';
 
         function updateMenu(sources, title) {
+            const bestStreamUrl = sources.length > 0 ? sources[0].url : '';
+
             let html = `
-                <div class="xv-quality-item xv-downie-item">
-                    <span>🚀 Open in Downie</span>
-                    <span class="action-hint">1-Click App</span>
-                </div>
-                <div class="xv-quality-item xv-cobalt-item">
-                    <span>🌐 1-Click Web MP4</span>
-                    <span class="action-hint">Cobalt Tools</span>
+                <div class="xv-quality-item xv-downie-item" data-best-url="${bestStreamUrl}">
+                    <span>🚀 Open Stream in Downie</span>
+                    <span class="action-hint">Direct Video</span>
                 </div>
             `;
 
@@ -296,40 +356,34 @@
                 html += `
                     <div class="xv-quality-item" data-url="${s.url}" data-hls="${s.isHls}">
                         <span>${s.label}</span>
-                        <span class="action-hint">${s.isHls ? '📋 Copy Stream' : '⬇️ Direct MP4'}</span>
+                        <span class="action-hint">${s.isHls ? '📋 Copy Stream URL' : '⬇️ Download MP4'}</span>
                     </div>
                 `;
             });
 
             menu.innerHTML = html;
 
-            // 1. Downie click
+            // 1. Send the ACTUAL raw video stream to Downie (not location.href)
             menu.querySelector('.xv-downie-item').addEventListener('click', (e) => {
                 e.stopPropagation();
-                sendToDownie(location.href);
+                const streamToOpen = menu.querySelector('.xv-downie-item').getAttribute('data-best-url');
+                sendStreamToDownie(streamToOpen);
                 menu.classList.remove('show');
             });
 
-            // 2. Cobalt click
-            menu.querySelector('.xv-cobalt-item').addEventListener('click', (e) => {
-                e.stopPropagation();
-                openInCobalt(location.href);
-                menu.classList.remove('show');
-            });
-
-            // 3. Stream items click
+            // 2. Stream items click (copies raw stream URL or downloads MP4)
             menu.querySelectorAll('.xv-quality-item[data-url]').forEach(item => {
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const url = item.getAttribute('data-url');
+                    const directVideoUrl = item.getAttribute('data-url');
                     const isHls = item.getAttribute('data-hls') === 'true';
 
                     if (isHls) {
-                        copyToClipboard(url);
-                        showToast('📋 Copied stream URL to clipboard!');
+                        copyToClipboard(directVideoUrl);
+                        showToast(`📋 Copied raw ${item.querySelector('span').textContent} stream URL!`);
                     } else {
                         const a = document.createElement('a');
-                        a.href = url;
+                        a.href = directVideoUrl;
                         a.download = (title || 'video') + '.mp4';
                         a.target = '_blank';
                         document.body.appendChild(a);
@@ -362,6 +416,11 @@
                 const videoEl = targetContainer.querySelector('video') || targetContainer;
                 const gen = getGenericVideoSource(videoEl);
                 if (gen) currentSources = gen;
+            }
+
+            if (currentSources.length === 0) {
+                showToast('⚠️ Searching video stream...');
+                return;
             }
 
             updateMenu(currentSources, currentTitle);
