@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      21.0.0
-// @description  Safe mobile 2-column grid CSS, highly visible selection checkboxes, infinite scroll, and 1-click bulk stream downloader.
+// @version      22.0.0
+// @description  Flawless mobile 2-column grid using actual mobile DOM selectors, visible checkboxes, and 1-click bulk stream downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
 // @match        *://pornhub.com/*
@@ -28,15 +28,13 @@
        1. STYLES (Ultra-Safe Mobile Grid & UI)
        ========================================================== */
     const STYLES = `
-        /* 📱 2-Column Mobile Grid (CSS Only) */
+        /* 📱 Flawless 2-Column Mobile Grid */
         @media (max-width: 768px) {
-            /* Transform the direct wrapper of the videos into a grid */
-            ul#showAllChanelVideos,
-            ul#videoCategory,
+            /* The parent list on mobile */
+            ul.videoList,
             ul.videos,
-            .videos-list,
-            .videoUList,
-            #mostRecentVideosSection {
+            ul#showAllChanelVideos,
+            ul#videoCategory {
                 display: grid !important;
                 grid-template-columns: repeat(2, 1fr) !important;
                 gap: 8px !important;
@@ -46,10 +44,11 @@
                 box-sizing: border-box !important;
             }
 
-            /* Each individual video block */
+            /* Each individual video list item */
+            ul.videoList > li,
+            ul.videos > li,
             li.videoBox, 
-            li.videoblock, 
-            li.pcVideoListItem {
+            li.videoblock {
                 width: 100% !important;
                 margin: 0 !important;
                 padding: 0 !important;
@@ -59,20 +58,20 @@
                 float: none !important;
             }
 
-            /* Force the inner wrapper to stack vertically */
-            .wrapVideoBlock,
-            .videoBox .wrap,
-            .video-wrapper {
+            /* The internal wrapper for the video content */
+            .videoWrapper,
+            .wrapVideoBlock {
                 display: flex !important;
                 flex-direction: column !important;
                 width: 100% !important;
+                flex-grow: 1 !important;
             }
 
-            /* Make the thumbnail scale correctly */
+            /* The image container */
+            .singleVideo,
             .phimage,
-            .img-holder,
-            a.img,
-            .videoThumbnail {
+            a.imageLink,
+            a.img {
                 width: 100% !important;
                 height: auto !important;
                 aspect-ratio: 16/9 !important;
@@ -80,12 +79,13 @@
                 overflow: hidden !important;
                 border-radius: 6px !important;
                 display: block !important;
+                background: #111 !important;
             }
 
+            .singleVideo img,
             .phimage img,
-            .img-holder img,
-            a.img img,
-            .videoThumbnail img {
+            a.imageLink img,
+            a.img img {
                 width: 100% !important;
                 height: 100% !important;
                 object-fit: cover !important;
@@ -94,14 +94,21 @@
                 left: 0 !important;
             }
 
-            /* Clean up the title area below the image */
-            .thumbnail-info-wrapper, 
-            .thumbnail-info {
+            /* The title container */
+            .underThumb,
+            .vidTitleWrapper,
+            .thumbnail-info-wrapper {
                 padding: 6px 0 !important;
+                width: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+
+            .underThumb-info {
                 width: 100% !important;
             }
 
-            .title, .thumbnailTitle {
+            .title a, .title, .thumbnailTitle {
                 font-size: 11px !important;
                 font-weight: 600 !important;
                 color: #fff !important;
@@ -112,22 +119,11 @@
                 -webkit-line-clamp: 2 !important;
                 -webkit-box-orient: vertical !important;
                 overflow: hidden !important;
+                text-decoration: none !important;
             }
 
-            /* Position the duration badge neatly */
-            .marker-overlays, .video-duration, .duration {
-                position: absolute !important;
-                bottom: 4px !important;
-                right: 4px !important;
-                font-size: 10px !important;
-                background: rgba(0,0,0,0.7) !important;
-                padding: 2px 4px !important;
-                border-radius: 4px !important;
-                z-index: 10 !important;
-            }
-
-            /* HIDE CLUTTER (NEVER hide .clearfix) */
-            .views, .added, .rating-container, .video-actions, .hd-thumbnail, .more-info {
+            /* Hide clutter elements (views, more button, etc) */
+            .views, .added, .moreActionKebabMenuButton, .video-actions, .rating-container {
                 display: none !important;
             }
         }
@@ -142,12 +138,12 @@
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            width: 34px !important;
-            height: 34px !important;
-            border-radius: 50% !important;
-            background: rgba(0, 0, 0, 0.7) !important;
-            border: 2px solid rgba(255, 255, 255, 0.9) !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.8) !important;
+            width: 32px !important;
+            height: 32px !important;
+            border-radius: 6px !important;
+            background: rgba(0, 0, 0, 0.75) !important;
+            border: 2px solid rgba(255, 255, 255, 0.95) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.9) !important;
             transition: all 0.2s ease !important;
             backdrop-filter: blur(4px) !important;
             -webkit-backdrop-filter: blur(4px) !important;
@@ -413,7 +409,8 @@
     function scanCards() {
         injectStyles();
 
-        const cards = document.querySelectorAll('li.videoBox, li.videoblock, li.pcVideoListItem');
+        // Get mobile list items (which don't have videoBox class) and desktop list items
+        const cards = document.querySelectorAll('ul.videoList > li, ul.videos > li, li.videoBox, li.videoblock, li.pcVideoListItem');
 
         cards.forEach(card => {
             if (card.dataset.xvHasBulkCheckbox === 'true') return;
@@ -423,12 +420,12 @@
 
             const href = link.getAttribute('href');
             const fullUrl = href.startsWith('http') ? href : (window.location.origin + href);
-            const title = link.getAttribute('title') || 'video';
+            const title = (card.querySelector('.title a, .title') || link).textContent.trim() || 'video';
 
             card.dataset.xvHasBulkCheckbox = 'true';
 
-            // IMPORTANT: Inject checkbox directly into the absolute outer wrapper or image holder
-            const injectTarget = card.querySelector('.phimage, a.img') || card.querySelector('.wrapVideoBlock') || card;
+            // IMPORTANT: Inject checkbox directly into the top image wrapper
+            const injectTarget = card.querySelector('.singleVideo, .phimage, a.imageLink, a.img') || card.querySelector('.videoWrapper') || card;
             if (window.getComputedStyle(injectTarget).position === 'static') {
                 injectTarget.style.position = 'relative';
             }
@@ -474,7 +471,8 @@
 
         isFetchingNextPage = true;
         
-        const anyCard = document.querySelector('li.videoBox, li.videoblock');
+        // Find container by looking for the first card's parent
+        const anyCard = document.querySelector('ul.videoList > li, ul.videos > li, li.videoBox, li.videoblock');
         if (!anyCard || !anyCard.parentElement) {
             isFetchingNextPage = false;
             return;
@@ -494,7 +492,7 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             
-            const newCards = doc.querySelectorAll('li.videoBox, li.videoblock');
+            const newCards = doc.querySelectorAll('ul.videoList > li, ul.videos > li, li.videoBox, li.videoblock');
             if (newCards.length > 0) {
                 newCards.forEach(card => container.appendChild(card));
                 
