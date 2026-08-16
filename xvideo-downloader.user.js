@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      19.1.0
-// @description  Perfect mobile 2-column grid, highly visible selection checkboxes, infinite scroll, and 1-click bulk stream downloader.
+// @version      20.0.0
+// @description  Perfect mobile 2-column grid via JS layout injection, visible checkboxes, and bulk downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
 // @match        *://pornhub.com/*
@@ -25,131 +25,25 @@
     let noMorePages = false;
 
     /* ==========================================================
-       1. STYLES (Clean Mobile Grid & UI)
+       1. STYLES (Clean UI & Checkboxes)
        ========================================================== */
     const STYLES = `
-        /* 📱 2-Column Mobile Grid Setup */
-        @media (max-width: 768px) {
-            /* The main video list container */
-            ul#showAllChanelVideos,
-            ul#videoCategory,
-            ul.videos,
-            #mostRecentVideosSection,
-            .videos-list,
-            .videoUList {
-                display: grid !important;
-                grid-template-columns: repeat(2, 1fr) !important;
-                gap: 12px !important;
-                padding: 12px !important;
-                margin: 0 !important;
-                width: 100% !important;
-                box-sizing: border-box !important;
-            }
-
-            /* Each individual video block */
-            li.videoBox, 
-            li.videoblock, 
-            li.pcVideoListItem, 
-            li.video-item {
-                width: 100% !important;
-                height: 100% !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                display: flex !important;
-                flex-direction: column !important;
-                background: transparent !important;
-                border: none !important;
-                box-sizing: border-box !important;
-            }
-
-            /* The wrapper inside the block */
-            .wrapVideoBlock,
-            .videoBox .wrap,
-            .thumbnail-info-wrapper {
-                display: flex !important;
-                flex-direction: column !important;
-                width: 100% !important;
-            }
-
-            /* The image container */
-            .phimage,
-            .img-holder,
-            .videoThumbnail,
-            a.img {
-                width: 100% !important;
-                height: auto !important;
-                aspect-ratio: 16/9 !important;
-                display: block !important;
-                position: relative !important;
-                overflow: hidden !important;
-                border-radius: 8px !important;
-            }
-
-            .phimage img,
-            .img-holder img,
-            .videoThumbnail img,
-            a.img img {
-                width: 100% !important;
-                height: 100% !important;
-                object-fit: cover !important;
-                position: absolute !important;
-                top: 0 !important;
-                left: 0 !important;
-            }
-
-            /* Fix duration badge on top of image */
-            .marker-overlays, .video-duration, .duration {
-                position: absolute !important;
-                bottom: 4px !important;
-                right: 4px !important;
-                font-size: 11px !important;
-                background: rgba(0,0,0,0.7) !important;
-                padding: 2px 4px !important;
-                border-radius: 4px !important;
-                z-index: 10 !important;
-            }
-
-            /* Title and info below image */
-            .thumbnail-info-wrapper, .thumbnail-info {
-                padding: 6px 0 !important;
-                width: 100% !important;
-            }
-
-            .title, .thumbnailTitle {
-                font-size: 12px !important;
-                font-weight: 600 !important;
-                color: #fff !important;
-                line-height: 1.3 !important;
-                margin: 0 !important;
-                white-space: normal !important;
-                overflow: hidden !important;
-                display: -webkit-box !important;
-                -webkit-line-clamp: 2 !important;
-                -webkit-box-orient: vertical !important;
-            }
-
-            /* Hide extra clutter */
-            .views, .added, .rating-container, .video-actions, .hd-thumbnail {
-                display: none !important;
-            }
-        }
-
         /* 🔘 Checkboxes on video thumbnails (Super Visible) */
         .xv-card-checkbox-wrapper {
             position: absolute !important;
-            top: 6px !important;
-            left: 6px !important;
-            z-index: 9999 !important;
+            top: 4px !important;
+            left: 4px !important;
+            z-index: 2147483647 !important;
             cursor: pointer !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            width: 34px !important;
-            height: 34px !important;
-            border-radius: 50% !important;
-            background: rgba(0, 0, 0, 0.7) !important;
-            border: 2px solid rgba(255, 255, 255, 0.9) !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.8) !important;
+            width: 32px !important;
+            height: 32px !important;
+            border-radius: 6px !important;
+            background: rgba(0, 0, 0, 0.75) !important;
+            border: 2px solid rgba(255, 255, 255, 0.95) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.9) !important;
             transition: all 0.2s ease !important;
             backdrop-filter: blur(4px) !important;
             -webkit-backdrop-filter: blur(4px) !important;
@@ -272,6 +166,49 @@
             font-size: 14px !important;
             grid-column: 1 / -1 !important;
         }
+        
+        /* 📱 Mobile Overrides for individual blocks */
+        @media (max-width: 768px) {
+            li.videoBox, li.videoblock {
+                width: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                float: none !important;
+                height: auto !important;
+            }
+            .wrapVideoBlock {
+                display: flex !important;
+                flex-direction: column !important;
+            }
+            .phimage, a.img {
+                width: 100% !important;
+                height: auto !important;
+                aspect-ratio: 16/9 !important;
+                position: relative !important;
+                overflow: hidden !important;
+            }
+            .phimage img, a.img img {
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: cover !important;
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+            }
+            .thumbnail-info-wrapper {
+                width: 100% !important;
+                padding: 4px 0 !important;
+            }
+            .title {
+                font-size: 12px !important;
+                line-height: 1.2 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+        }
     `;
 
     function injectStyles() {
@@ -316,7 +253,28 @@
     }
 
     /* ==========================================================
-       2. STREAM EXTRACTOR
+       2. JS-POWERED MOBILE GRID INJECTION
+       ========================================================== */
+    function enforceMobileGrid() {
+        if (window.innerWidth > 768) return;
+        
+        // Find the parent list containing the videos
+        const cards = document.querySelectorAll('li.videoBox, li.videoblock');
+        if (cards.length > 0) {
+            const container = cards[0].parentElement;
+            if (container && container.tagName === 'UL') {
+                container.style.cssText = 'display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; padding: 8px !important; margin: 0 !important; width: 100% !important; box-sizing: border-box !important;';
+            }
+        }
+        
+        // Hide clutter elements forcefully via inline style
+        document.querySelectorAll('.views, .added, .rating-container, .video-actions, .clearfix, .hd-thumbnail, .more-info').forEach(el => {
+            el.style.setProperty('display', 'none', 'important');
+        });
+    }
+
+    /* ==========================================================
+       3. STREAM EXTRACTOR
        ========================================================== */
     async function extractRealStreamFromPage(videoPageUrl) {
         try {
@@ -344,7 +302,7 @@
     }
 
     /* ==========================================================
-       3. FLOATING DOCK UI
+       4. FLOATING DOCK UI
        ========================================================== */
     function updateDockUI() {
         let dock = document.getElementById('xv-bulk-action-dock');
@@ -410,18 +368,18 @@
     }
 
     /* ==========================================================
-       4. ATTACH CHECKBOXES TO CARDS
+       5. ATTACH CHECKBOXES TO CARDS
        ========================================================== */
     function scanCards() {
         injectStyles();
+        enforceMobileGrid();
 
-        // Target every video card on mobile and desktop
-        const cards = document.querySelectorAll('li.videoBox, li.videoblock, li.pcVideoListItem, li.video-item');
+        const cards = document.querySelectorAll('li.videoBox, li.videoblock, li.pcVideoListItem');
 
         cards.forEach(card => {
             if (card.dataset.xvHasBulkCheckbox === 'true') return;
 
-            const link = card.querySelector('a[href*="viewkey="], a[href*="/video/"]');
+            const link = card.querySelector('a[href*="viewkey="]');
             if (!link) return;
 
             const href = link.getAttribute('href');
@@ -430,12 +388,10 @@
 
             card.dataset.xvHasBulkCheckbox = 'true';
 
-            // Find image wrapper to append checkbox inside
-            const imgHolder = card.querySelector('.phimage, .img-holder, .videoThumbnail, a.img');
-            if (!imgHolder) return;
-
-            if (window.getComputedStyle(imgHolder).position === 'static') {
-                imgHolder.style.position = 'relative';
+            // IMPORTANT: Inject checkbox directly into the absolute outer wrapper or image holder
+            const injectTarget = card.querySelector('.phimage, a.img') || card.querySelector('.wrapVideoBlock') || card;
+            if (window.getComputedStyle(injectTarget).position === 'static') {
+                injectTarget.style.position = 'relative';
             }
 
             const checkbox = document.createElement('div');
@@ -459,19 +415,18 @@
                 updateDockUI();
             });
 
-            imgHolder.appendChild(checkbox);
+            injectTarget.appendChild(checkbox);
         });
     }
 
     /* ==========================================================
-       5. INFINITE SCROLL
+       6. INFINITE SCROLL
        ========================================================== */
     async function loadNextPage() {
         if (isFetchingNextPage || noMorePages) return;
 
         const nextLink = document.querySelector('link[rel="next"]') || 
-                         document.querySelector('li.page_next a') || 
-                         document.querySelector('.pagination-next a');
+                         document.querySelector('li.page_next a');
                          
         if (!nextLink || !nextLink.href) {
             noMorePages = true;
@@ -480,21 +435,18 @@
 
         isFetchingNextPage = true;
         
-        let container = document.querySelector('ul#showAllChanelVideos, ul#videoCategory, ul.videos, #mostRecentVideosSection, .videoUList');
-        if (!container) {
-            const anyCard = document.querySelector('li.videoBox, li.videoblock');
-            if (anyCard) container = anyCard.parentElement;
-        }
-        
-        if (!container) {
+        const anyCard = document.querySelector('li.videoBox, li.videoblock');
+        if (!anyCard || !anyCard.parentElement) {
             isFetchingNextPage = false;
             return;
         }
         
+        const container = anyCard.parentElement;
+        
         const loader = document.createElement('div');
         loader.className = 'xv-infinite-loader';
         loader.innerHTML = `⏳ Loading more...`;
-        container.appendChild(loader);
+        container.parentElement.appendChild(loader);
 
         try {
             const res = await fetch(nextLink.href);
@@ -503,7 +455,7 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             
-            const newCards = doc.querySelectorAll('li.videoBox, li.videoblock, li.pcVideoListItem');
+            const newCards = doc.querySelectorAll('li.videoBox, li.videoblock');
             if (newCards.length > 0) {
                 newCards.forEach(card => container.appendChild(card));
                 
@@ -534,6 +486,7 @@
 
     function run() {
         injectStyles();
+        enforceMobileGrid();
         scanCards();
         updateDockUI();
 
@@ -548,7 +501,10 @@
         run();
     }
 
-    const observer = new MutationObserver(() => scanCards());
+    const observer = new MutationObserver(() => {
+        enforceMobileGrid();
+        scanCards();
+    });
     observer.observe(document.documentElement, { childList: true, subtree: true });
 
 })();
