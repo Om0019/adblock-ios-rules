@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         X-Video Tube Video Downloader (Mobile Responsive)
+// @name         X-Video Tube Video Downloader & Model Video Search
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      4.0.0
-// @description  Mobile-optimized video downloader and direct stream extractor for x-video.tube
+// @version      5.0.0
+// @description  Mobile-optimized video downloader, direct stream extractor, and instant search filter for model video pages on x-video.tube
 // @author       Antigravity
 // @match        https://x-video.tube/*
 // @match        https://*.x-video.tube/*
@@ -20,7 +20,118 @@
     'use strict';
 
     const STYLES = `
-        /* Responsive Mobile Container */
+        /* =========================================
+           1. MODEL VIDEO SEARCH BAR STYLES
+           ========================================= */
+        .xv-model-search-container {
+            width: 100%;
+            box-sizing: border-box;
+            margin: 12px 0 16px 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        }
+
+        .xv-model-search-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .xv-search-input-wrapper {
+            position: relative;
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+        }
+
+        .xv-search-input-wrapper svg.search-icon {
+            position: absolute;
+            left: 12px;
+            width: 16px;
+            height: 16px;
+            fill: #888888;
+            pointer-events: none;
+        }
+
+        .xv-model-search-input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #181818;
+            border: 1px solid #333333;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 14px;
+            padding: 10px 36px 10px 38px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .xv-model-search-input:focus {
+            border-color: #e50914;
+            box-shadow: 0 0 0 2px rgba(229, 9, 20, 0.25);
+            background: #202020;
+        }
+
+        .xv-model-search-clear {
+            position: absolute;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #888888;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 4px 6px;
+            display: none;
+        }
+        .xv-model-search-clear:hover {
+            color: #ffffff;
+        }
+
+        .xv-search-load-all-btn {
+            background: #2a2a2a;
+            color: #dddddd;
+            border: 1px solid #444444;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .xv-search-load-all-btn:hover {
+            background: #383838;
+            color: #ffffff;
+            border-color: #666666;
+        }
+
+        .xv-search-status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #999999;
+            padding: 0 4px;
+        }
+
+        .xv-search-match-count {
+            color: #e50914;
+            font-weight: 700;
+        }
+
+        /* =========================================
+           2. VIDEO DOWNLOAD ACTION BAR STYLES
+           ========================================= */
         .xv-action-bar {
             display: flex;
             align-items: stretch;
@@ -85,12 +196,10 @@
             flex-shrink: 0;
         }
 
-        /* Unlocked Native Site Download Icon */
         .info-bar__button.xv-unlocked {
             color: #e50914 !important;
         }
 
-        /* Toast notification */
         .xv-toast {
             position: fixed;
             bottom: 20px;
@@ -116,8 +225,14 @@
             to { opacity: 1; transform: translate(-50%, 0); }
         }
 
-        /* Compact styling for small screens */
         @media (max-width: 480px) {
+            .xv-model-search-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .xv-search-load-all-btn {
+                justify-content: center;
+            }
             .xv-action-bar {
                 gap: 6px;
                 margin: 8px 0;
@@ -131,9 +246,9 @@
     `;
 
     function injectStyles() {
-        if (document.getElementById('xv-downloader-styles')) return;
+        if (document.getElementById('xv-core-styles')) return;
         const style = document.createElement('style');
-        style.id = 'xv-downloader-styles';
+        style.id = 'xv-core-styles';
         style.textContent = STYLES;
         document.head.appendChild(style);
     }
@@ -168,6 +283,160 @@
         return true;
     }
 
+    /* ==========================================================
+       MODEL VIDEOS INSTANT SEARCH & MULTI-PAGE FETCHER
+       ========================================================== */
+    function initModelPageSearch() {
+        if (document.getElementById('xv-model-search-box')) return;
+
+        // Target: #list_videos_common_videos_list or .thumbs container
+        const listContainer = document.getElementById('list_videos_common_videos_list') ||
+                              document.querySelector('.main_column .thumbs');
+        if (!listContainer) return;
+
+        const thumbsList = listContainer.querySelector('.thumbs__list');
+        if (!thumbsList) return;
+
+        injectStyles();
+
+        const searchContainer = document.createElement('div');
+        searchContainer.className = 'xv-model-search-container';
+        searchContainer.id = 'xv-model-search-box';
+
+        searchContainer.innerHTML = `
+            <div class="xv-model-search-row">
+                <div class="xv-search-input-wrapper">
+                    <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    <input type="text" class="xv-model-search-input" placeholder="Search this model's videos by title/tags..." />
+                    <button class="xv-model-search-clear" type="button" title="Clear">✕</button>
+                </div>
+                <button class="xv-search-load-all-btn" type="button" title="Fetch all paginated videos into this view for searching">
+                    <span>⚡ Load All Pages</span>
+                </button>
+            </div>
+            <div class="xv-search-status-bar">
+                <span class="xv-search-count-info">Showing all videos</span>
+                <span class="xv-search-pages-info"></span>
+            </div>
+        `;
+
+        // Insert before thumbs list (or right under heading)
+        const heading = listContainer.querySelector('.heading');
+        if (heading && heading.nextSibling) {
+            heading.parentNode.insertBefore(searchContainer, heading.nextSibling);
+        } else {
+            listContainer.insertBefore(searchContainer, thumbsList);
+        }
+
+        const input = searchContainer.querySelector('.xv-model-search-input');
+        const clearBtn = searchContainer.querySelector('.xv-model-search-clear');
+        const loadAllBtn = searchContainer.querySelector('.xv-search-load-all-btn');
+        const countInfo = searchContainer.querySelector('.xv-search-count-info');
+        const pagesInfo = searchContainer.querySelector('.xv-search-pages-info');
+
+        function filterVideos() {
+            const query = input.value.trim().toLowerCase();
+            clearBtn.style.display = query ? 'block' : 'none';
+
+            const items = thumbsList.querySelectorAll('.item.thumb--videos');
+            let visibleCount = 0;
+
+            items.forEach(item => {
+                const titleEl = item.querySelector('a[title]') || item.querySelector('.title') || item;
+                const titleText = (titleEl.getAttribute('title') || titleEl.textContent || '').toLowerCase();
+                
+                if (!query || titleText.includes(query)) {
+                    item.style.display = '';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            if (query) {
+                countInfo.innerHTML = `Found <span class="xv-search-match-count">${visibleCount}</span> of ${items.length} videos matching "<em>${escapeHTML(query)}</em>"`;
+            } else {
+                countInfo.textContent = `Showing all ${items.length} videos`;
+            }
+        }
+
+        input.addEventListener('input', filterVideos);
+        clearBtn.addEventListener('click', () => {
+            input.value = '';
+            filterVideos();
+            input.focus();
+        });
+
+        // Load all pagination pages dynamically
+        let isLoadingPages = false;
+        loadAllBtn.addEventListener('click', async () => {
+            if (isLoadingPages) return;
+            isLoadingPages = true;
+            loadAllBtn.disabled = true;
+
+            const pagination = document.querySelector('.pagination-holder ul') || document.querySelector('.pagination ul');
+            if (!pagination) {
+                showToast('ℹ️ All videos are already on this page.');
+                loadAllBtn.style.display = 'none';
+                return;
+            }
+
+            // Find all page links
+            const links = Array.from(pagination.querySelectorAll('a[href]'))
+                               .map(a => a.getAttribute('href'))
+                               .filter(h => h && h.match(/\/videos\/\d+\//));
+            
+            const uniquePageHrefs = [...new Set(links)];
+
+            if (uniquePageHrefs.length === 0) {
+                showToast('ℹ️ No additional pages found.');
+                loadAllBtn.style.display = 'none';
+                return;
+            }
+
+            let loaded = 0;
+            const total = uniquePageHrefs.length;
+
+            loadAllBtn.innerHTML = `<span>⏳ Loading 0/${total} pages...</span>`;
+
+            for (const href of uniquePageHrefs) {
+                try {
+                    const fullUrl = href.startsWith('http') ? href : window.location.origin + href;
+                    const res = await fetch(fullUrl);
+                    const html = await res.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+
+                    const newItems = doc.querySelectorAll('#list_videos_common_videos_list .thumbs__list .item.thumb--videos, .thumbs__list .item.thumb--videos');
+                    newItems.forEach(item => {
+                        // Prevent duplicate IDs
+                        const link = item.querySelector('a[href]');
+                        if (link && !thumbsList.querySelector(`a[href="${link.getAttribute('href')}"]`)) {
+                            thumbsList.appendChild(document.importNode(item, true));
+                        }
+                    });
+
+                    loaded++;
+                    loadAllBtn.innerHTML = `<span>⏳ Loading ${loaded}/${total} pages...</span>`;
+                } catch (e) {
+                    console.error('Error fetching page:', href, e);
+                }
+            }
+
+            loadAllBtn.innerHTML = `<span>✅ All Pages Loaded (${thumbsList.querySelectorAll('.item.thumb--videos').length} total)</span>`;
+            pagesInfo.textContent = `All ${total + 1} pages combined`;
+            showToast(`✅ Loaded all videos! You can now search across every page.`);
+            filterVideos();
+        });
+    }
+
+    function escapeHTML(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    /* ==========================================================
+       VIDEO DOWNLOAD ACTION BAR (SINGLE VIDEO PAGES)
+       ========================================================== */
     function extractVideoData() {
         const videoData = {
             title: document.title.replace(/ - Free porn tube.*$/i, '').trim() || 'video',
@@ -207,7 +476,7 @@
         return videoData;
     }
 
-    function initUI() {
+    function initVideoDownloadUI() {
         if (document.getElementById('xv-action-bar-container')) return;
 
         const infoBar = document.querySelector('.info-bar');
@@ -215,7 +484,7 @@
 
         const data = extractVideoData();
         if (!data.url) {
-            setTimeout(initUI, 700);
+            setTimeout(initVideoDownloadUI, 700);
             return;
         }
 
@@ -223,7 +492,7 @@
 
         const safeTitle = data.title.replace(/[/\\?%*:|"<>]/g, '_') + '.mp4';
 
-        // 1. Unlock the native download icon in the header info-bar
+        // 1. Unlock native site download icon
         const nativeDlBtn = infoBar.querySelector('a[title="Download"]');
         if (nativeDlBtn && !nativeDlBtn.classList.contains('xv-unlocked')) {
             nativeDlBtn.classList.add('xv-unlocked');
@@ -236,12 +505,11 @@
             });
         }
 
-        // 2. Insert Mobile-Responsive Action Bar directly below .info-bar
+        // 2. Insert mobile-responsive action bar
         const actionBar = document.createElement('div');
         actionBar.className = 'xv-action-bar';
         actionBar.id = 'xv-action-bar-container';
 
-        // Direct Download Button
         const dlBtn = document.createElement('a');
         dlBtn.className = 'xv-action-btn xv-btn-download';
         dlBtn.href = data.url;
@@ -255,7 +523,6 @@
             showToast('⬇️ Starting MP4 download...');
         });
 
-        // Copy Stream URL Button
         const copyBtn = document.createElement('button');
         copyBtn.className = 'xv-action-btn xv-btn-copy';
         copyBtn.type = 'button';
@@ -272,15 +539,20 @@
         actionBar.appendChild(dlBtn);
         actionBar.appendChild(copyBtn);
 
-        // Insert after info-bar without disturbing layout
         infoBar.parentNode.insertBefore(actionBar, infoBar.nextSibling);
     }
 
+    /* ==========================================================
+       MAIN RUNNER
+       ========================================================== */
     function run() {
+        if (location.pathname.includes('/models/') || document.getElementById('list_videos_common_videos_list')) {
+            initModelPageSearch();
+            setTimeout(initModelPageSearch, 800);
+        }
         if (location.pathname.includes('/video/') || document.getElementById('kt_player')) {
-            initUI();
-            setTimeout(initUI, 1000);
-            setTimeout(initUI, 2500);
+            initVideoDownloadUI();
+            setTimeout(initVideoDownloadUI, 800);
         }
     }
 
