@@ -1,14 +1,36 @@
 [Adblock Plus 2.0]
 ! Title: X-Video Tube & Network AdBlock Filter
-! Description: EasyList-compatible filter subscription for blocking ads, pre-rolls, popunders, and trackers on x-video.tube
+! Description: Comprehensive filter subscription blocking ads, pre-rolls, tabunder click hijacks, popunders, and trackers on x-video.tube
 ! Homepage: https://github.com/Om0019/adblock-ios-rules
-! Version: 1.0.0
+! Version: 1.1.0
 ! Last modified: 2026-08-15
-! Expires: 4 days
+! Expires: 2 days
 
-! ========================================
-! 1. Network / Request Blocking Rules
-! ========================================
+! ========================================================
+! 1. Anti-Tabunder & Popunder Scriptlet Defusers (uBO / AdGuard)
+! ========================================================
+! Neutralizes the inline adConfig script attached to img-holder/thumbs/player
+x-video.tube##+js(set, adConfig, undefined)
+x-video.tube##+js(set, adConfig, false)
+x-video.tube##+js(abort-on-property-read, adConfig)
+x-video.tube##+js(abort-current-script, adConfig)
+x-video.tube##+js(nowo)
+
+! Prevent tabunder & popup redirects
+||x-video.tube^$popup
+||happyleafmotion.com^$all,popup
+||exacdn.com^$all,popup
+||gmxes.com^$all,popup
+||mayzaent.com^$all,popup
+||awdeliverynet.com^$all,popup
+||eunow4u.com^$all,popup
+||gentlefieldpattern.com^$all,popup
+||aaaconnect.info^$all,popup
+
+
+! ========================================================
+! 2. Network / Third-Party Request Blocking Rules
+! ========================================================
 
 ! --- ExoClick / MagSrv Banner & Player Ad Networks ---
 ||magsrv.com^$third-party
@@ -33,9 +55,9 @@
 ||mc.yandex.ru^$third-party
 
 
-! ========================================
-! 2. Cosmetic & Element Hiding Rules
-! ========================================
+! ========================================================
+! 3. Cosmetic & Element Hiding Rules
+! ========================================================
 
 ! --- Top Promo Floating Banners & Category Spams ---
 x-video.tube##.xv-topbar-flare-final
