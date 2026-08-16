@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      22.2.0
-// @description  Flawless mobile 2-column grid using actual mobile DOM selectors, visible checkboxes, and 1-click bulk stream downloader.
+// @version      23.0.0
+// @description  Flawless multi-section handling (Most Recent + Uploaded), bulletproof infinite scroll, and bulk downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
 // @match        *://pornhub.com/*
@@ -25,12 +25,11 @@
     let noMorePages = false;
 
     /* ==========================================================
-       1. STYLES (Ultra-Safe Mobile Grid & UI)
+       1. STYLES (Multi-Section Safe Mobile Grid)
        ========================================================== */
     const STYLES = `
-        /* 📱 Flawless 2-Column Mobile Grid */
         @media (max-width: 768px) {
-            /* The parent list on mobile */
+            /* 📱 Force grid ONLY on the main video lists, but allow Shorties/Most Recent to stay normal if needed */
             ul.videoList,
             ul.videos,
             ul#showAllChanelVideos,
@@ -42,6 +41,12 @@
                 margin: 0 !important;
                 width: 100% !important;
                 box-sizing: border-box !important;
+            }
+
+            /* Make "Most Recent" span full width since it's only 1 video usually */
+            ul.modelShorties__recent__videos {
+                display: block !important;
+                padding: 8px !important;
             }
 
             /* Each individual video list item */
@@ -458,7 +463,7 @@
     }
 
     /* ==========================================================
-       5. INFINITE SCROLL (BULLETPROOF STATE-DRIVEN)
+       5. INFINITE SCROLL (MULTI-SECTION AWARE)
        ========================================================== */
     let currentNextUrl = null;
     let initializedPagination = false;
@@ -480,14 +485,14 @@
 
         isFetchingNextPage = true;
         
-        // Find container to append to
-        const anyCard = document.querySelector('ul.videoList > li, ul.videos > li, li.videoBox, li.videoblock, li.pcVideoListItem');
-        if (!anyCard || !anyCard.parentElement) {
+        // Find container to append to: Must be the MAIN uploaded videos list, which is the LAST ul.videoList on the page
+        const lists = document.querySelectorAll('ul.videoList, ul.videos');
+        if (lists.length === 0) {
             isFetchingNextPage = false;
             return;
         }
         
-        const container = anyCard.parentElement;
+        const container = lists[lists.length - 1]; // Always target the last list (Uploaded Videos)
         
         const loader = document.createElement('div');
         loader.className = 'xv-infinite-loader';
@@ -501,9 +506,13 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             
-            // Extract the new video cards
-            const newCards = doc.querySelectorAll('ul.videoList > li, ul.videos > li, li.videoBox, li.videoblock, li.pcVideoListItem');
-            if (newCards.length > 0) {
+            // Extract the new video list from the fetched page
+            const newLists = doc.querySelectorAll('ul.videoList, ul.videos');
+            if (newLists.length > 0) {
+                // Grab items only from the main paginated list of the fetched page
+                const newContainer = newLists[newLists.length - 1];
+                const newCards = newContainer.querySelectorAll(':scope > li');
+                
                 newCards.forEach(card => container.appendChild(card));
                 
                 // Update our state with the next page's "Next" link
