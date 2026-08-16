@@ -1,15 +1,33 @@
 [Adblock Plus 2.0]
-! Title: X-Video Tube & Network AdBlock Filter
-! Description: Comprehensive filter subscription blocking ads, pre-rolls, tabunder click hijacks, popunders, and trackers on x-video.tube
+! Title: Universal Video & Tube AdBlock Filter
+! Description: EasyList-compatible filter subscription blocking ads, pre-rolls (TrafficJunky, VAST), popunders, and trackers on x-video.tube, pornhub, and tube networks
 ! Homepage: https://github.com/Om0019/adblock-ios-rules
-! Version: 1.1.0
+! Version: 2.0.0
 ! Last modified: 2026-08-15
 ! Expires: 2 days
 
 ! ========================================================
-! 1. Anti-Tabunder & Popunder Scriptlet Defusers (uBO / AdGuard)
+! 1. Video Pre-Roll, AdRoll & Video Player Ad Networks
 ! ========================================================
-! Neutralizes the inline adConfig script attached to img-holder/thumbs/player
+||trafficjunky.com^$third-party
+||trafficjunky.net^$third-party
+||tjassets.com^$third-party
+||phncdn.com/ads/*
+||phncdn.com/*/ads/*
+||*ads*.phncdn.com^
+||etahub.com^$third-party
+||ero-advertising.com^$third-party
+
+! Auto-disable pre-rolls & pause-rolls in player config
+pornhub.com##+js(set, flashvars_*.htmlPauseRoll, "false")
+pornhub.com##+js(set, flashvars_*.htmlPostRoll, "false")
+pornhub.com##+js(set, flashvars_*.adConfig, undefined)
+pornhub.com##+js(set, flashvars_*.adrolls, [])
+pornhub.com##.ad-container, .ads-wrapper, #headerTopPromo, .ad-link
+
+! ========================================================
+! 2. Anti-Tabunder & Popunder Scriptlet Defusers (X-Video)
+! ========================================================
 x-video.tube##+js(set, adConfig, undefined)
 x-video.tube##+js(set, adConfig, false)
 x-video.tube##+js(abort-on-property-read, adConfig)
@@ -27,48 +45,30 @@ x-video.tube##+js(nowo)
 ||gentlefieldpattern.com^$all,popup
 ||aaaconnect.info^$all,popup
 
-
 ! ========================================================
-! 2. Network / Third-Party Request Blocking Rules
+! 3. Third-Party Ad & Tracking Requests
 ! ========================================================
-
-! --- ExoClick / MagSrv Banner & Player Ad Networks ---
 ||magsrv.com^$third-party
 ||happyleafmotion.com^$third-party
 ||exacdn.com^$third-party
-
-! --- Push Notifications & Popunder Scripts ---
 ||gmxes.com^$third-party
-
-! --- VAST Pre-roll Video Ad Delivery ---
 ||awdeliverynet.com^$third-party
-
-! --- Smartpop / Redirect / Clickout Networks ---
 ||mayzaent.com^$third-party
 ||eunow4u.com^$third-party
 ||gentlefieldpattern.com^$third-party
 ||aaaconnect.info^$third-party
-
-! --- Analytics & Tracking Telemetry ---
 ||counter.yadro.ru^$third-party
 ||liveinternet.ru^$third-party
 ||mc.yandex.ru^$third-party
 
-
 ! ========================================================
-! 3. Cosmetic & Element Hiding Rules
+! 4. Cosmetic & Element Hiding Rules
 ! ========================================================
-
-! --- Top Promo Floating Banners & Category Spams ---
 x-video.tube##.xv-topbar-flare-final
 x-video.tube##.top-sites-bar
 x-video.tube##.tg-holder
-
-! --- Navigation Menu Ad / Fake Login Buttons ---
 x-video.tube##li.clkbat
 x-video.tube##a.tablink[href*="mayzaent.com"]
 x-video.tube##a[href*="gentlefieldpattern.com"]
 x-video.tube##a[href*="eunow4u.com"]
-
-! --- Premium Notification Overlays & Modals ---
 x-video.tube##.fancybox-overlay-fixed
