@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      22.0.0
+// @version      22.1.0
 // @description  Flawless mobile 2-column grid using actual mobile DOM selectors, visible checkboxes, and 1-click bulk stream downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
@@ -317,23 +317,25 @@
             const res = await fetch(videoPageUrl, { headers: { 'Referer': location.href } });
             const html = await res.text();
 
-            for (const line of html.split('\n')) {
-                if (line.includes('var flashvars_') && line.includes('=')) {
-                    const jsonPart = line.split('=', 1)[1].trim().replace(/;$/, '');
-                    try {
-                        const data = JSON.parse(jsonPart);
-                        const defs = (data.mediaDefinitions || []).filter(d => d.videoUrl && !d.videoUrl.includes('/ads/'));
-                        if (defs.length > 0) {
-                            defs.sort((a, b) => (parseInt(b.quality || b.height, 10) || 0) - (parseInt(a.quality || a.height, 10) || 0));
-                            return defs[0].videoUrl;
-                        }
-                    } catch (e) {}
+            const flashvarsMatch = html.match(/var flashvars_\d+\s*=\s*({.*?});/);
+            if (flashvarsMatch) {
+                try {
+                    const data = JSON.parse(flashvarsMatch[1]);
+                    const defs = (data.mediaDefinitions || []).filter(d => d.videoUrl && !d.videoUrl.includes('/ads/'));
+                    if (defs.length > 0) {
+                        defs.sort((a, b) => (parseInt(b.quality, 10) || 0) - (parseInt(a.quality, 10) || 0));
+                        return defs[0].videoUrl;
+                    }
+                } catch (e) {
+                    console.error('JSON parse error:', e);
                 }
             }
 
             const m3u8Match = html.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/);
             if (m3u8Match && !m3u8Match[0].includes('/ads/')) return m3u8Match[0].replace(/\\/g, '');
-        } catch (e) {}
+        } catch (e) {
+            console.error('Fetch error:', e);
+        }
         return null;
     }
 
