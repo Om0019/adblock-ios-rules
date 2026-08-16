@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      23.1.0
+// @version      24.0.0
 // @description  Flawless multi-section handling (Most Recent + Uploaded), bulletproof infinite scroll, and bulk downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
@@ -299,19 +299,16 @@
         toast.hideTimeout = setTimeout(() => toast.classList.remove('show'), duration);
     }
 
-    function copyToClipboard(text) {
-        if (typeof GM_setClipboard !== 'undefined') {
-            GM_setClipboard(text);
-        } else {
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.position = 'fixed';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-        }
+    function downloadM3uFile(text, filename) {
+        const blob = new Blob([text], { type: 'application/vnd.apple.mpegurl' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     /* ==========================================================
@@ -359,7 +356,7 @@
             dock.innerHTML = `
                 <div class="xv-dock-count">🛒 <span>0</span></div>
                 <div style="display:flex; gap:10px;">
-                    <button class="xv-dock-btn" id="xv-bulk-copy-btn">🚀 Copy Links</button>
+                    <button class="xv-dock-btn" id="xv-bulk-copy-btn">📥 Download List</button>
                     <button class="xv-dock-btn secondary" id="xv-bulk-clear-btn">Clear</button>
                 </div>
             `;
@@ -394,13 +391,13 @@
                         }
                     }
                     
-                    copyToClipboard(m3uText);
+                    downloadM3uFile(m3uText, `Pornhub_${new Date().toISOString().slice(0,10)}.m3u8`);
                     btn.textContent = '✅ Done';
-                    showToast(`✅ Copied ${extractedUrls.length} links!`);
+                    showToast(`✅ Downloaded playlist!`);
                     setTimeout(() => dock.querySelector('#xv-bulk-clear-btn').click(), 2000);
                 } else {
                     showToast('❌ Failed to extract streams.');
-                    btn.textContent = '🚀 Copy Links';
+                    btn.textContent = '📥 Download List';
                 }
                 btn.disabled = false;
             });
@@ -414,7 +411,7 @@
 
         if (count > 0) {
             dock.querySelector('.xv-dock-count span').textContent = count;
-            dock.querySelector('#xv-bulk-copy-btn').textContent = '🚀 Copy Links';
+            dock.querySelector('#xv-bulk-copy-btn').textContent = '📥 Download List';
             dock.classList.add('show');
         } else {
             dock.classList.remove('show');
