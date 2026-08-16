@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         X-Video Tube Video Downloader
+// @name         X-Video Tube Video Downloader (Turbo Multi-Threaded)
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      1.0.0
-// @description  Adds high-quality MP4 download buttons and direct video download options to x-video.tube
+// @version      2.0.0
+// @description  High-speed multi-threaded MP4 video downloader for x-video.tube with parallel chunk acceleration & progress bar
 // @author       Antigravity
 // @match        https://x-video.tube/*
 // @match        https://*.x-video.tube/*
@@ -14,7 +14,9 @@
 (function () {
     'use strict';
 
-    // CSS Styling for the download button and menu
+    const THREAD_COUNT = 6; // Number of parallel chunk connections to bypass server rate limits
+
+    // UI Styles
     const STYLES = `
         .xv-download-btn-wrapper {
             display: inline-flex;
@@ -22,6 +24,7 @@
             margin-left: 10px;
             position: relative;
             vertical-align: middle;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
         }
         .xv-download-btn {
             display: inline-flex;
@@ -44,13 +47,29 @@
             box-shadow: 0 4px 12px rgba(229, 9, 20, 0.6);
             transform: translateY(-1px);
         }
+        .xv-download-btn.downloading {
+            background: #222222;
+            border: 1px solid #e50914;
+            cursor: wait;
+            transform: none;
+        }
         .xv-download-btn svg {
             width: 16px;
             height: 16px;
             fill: currentColor;
         }
+        .xv-progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: #00ff66;
+            width: 0%;
+            border-radius: 0 0 4px 4px;
+            transition: width 0.2s ease;
+        }
         .xv-quality-badge {
-            background: rgba(0, 0, 0, 0.35);
+            background: rgba(0, 0, 0, 0.4);
             font-size: 11px;
             padding: 2px 6px;
             border-radius: 3px;
@@ -67,7 +86,7 @@
             border-radius: 4px;
             box-shadow: 0 6px 16px rgba(0,0,0,0.8);
             z-index: 99999;
-            min-width: 180px;
+            min-width: 220px;
         }
         .xv-download-dropdown.show {
             display: block;
@@ -81,6 +100,7 @@
             text-decoration: none !important;
             font-size: 13px;
             border-bottom: 1px solid #292929;
+            cursor: pointer;
             transition: background 0.15s ease;
         }
         .xv-download-item:last-child {
@@ -100,21 +120,20 @@
         document.head.appendChild(style);
     }
 
-    // Extract video stream URLs from scripts and DOM
+    // Extract video stream metadata
     function extractVideoData() {
         const videoData = {
             title: document.title.replace(/ - Free porn tube.*$/i, '').trim() || 'video',
             sources: []
         };
 
-        // 1. Try window.player_obj
         try {
             if (window.player_obj && window.player_obj.conf) {
                 const conf = window.player_obj.conf;
                 if (conf.video_title) videoData.title = conf.video_title;
                 if (conf.video_url) {
                     videoData.sources.push({
-                        label: conf.video_url_fhd ? '1080p FHD' : 'HD (720p/1080p)',
+                        label: conf.video_url_fhd ? '1080p FHD (Turbo)' : 'HD Quality (Turbo)',
                         url: conf.video_url
                     });
                 }
@@ -129,7 +148,6 @@
             console.debug('Error reading player_obj:', e);
         }
 
-        // 2. Scan inline scripts for video_url patterns if player_obj is not yet ready
         if (videoData.sources.length === 0) {
             const scripts = document.querySelectorAll('script:not([src])');
             for (const script of scripts) {
@@ -140,12 +158,10 @@
                     const altMatch = text.match(/video_alt_url:\s*['"]([^'"]+)['"]/);
                     const isFhd = text.includes("video_url_fhd: '1'") || text.includes('video_url_fhd: "1"');
 
-                    if (titleMatch && titleMatch[1]) {
-                        videoData.title = titleMatch[1];
-                    }
+                    if (titleMatch && titleMatch[1]) videoData.title = titleMatch[1];
                     if (urlMatch && urlMatch[1]) {
                         videoData.sources.push({
-                            label: isFhd ? '1080p FHD' : 'HD Quality',
+                            label: isFhd ? '1080p FHD (Turbo)' : 'HD Quality (Turbo)',
                             url: urlMatch[1]
                         });
                     }
@@ -160,7 +176,6 @@
             }
         }
 
-        // 3. Try standard <video> tags in DOM
         if (videoData.sources.length === 0) {
             const videoEl = document.querySelector('video[src]');
             if (videoEl && videoEl.src) {
@@ -174,19 +189,79 @@
         return videoData;
     }
 
-    // Trigger direct file download
-    function downloadFile(url, filename) {
-        const cleanName = (filename || 'video').replace(/[/\\?%*:|"<>]/g, '_') + '.mp4';
+    // High-Speed Multi-Threaded Parallel Chunk Downloader
+    async function turboDownload(url, filename, progressCallback) {
+        // Step 1: Get Content-Length via probe Range request
+        const probeResp = await fetch(url, {
+            headers: { 'Range': 'bytes=0-0' }
+        });
+
+        const rangeHeader = probeResp.headers.get('Content-Range');
+        let totalBytes = 0;
+
+        if (rangeHeader) {
+            const match = rangeHeader.match(/\/(\d+)/);
+            if (match) totalBytes = parseInt(match[1], 10);
+        }
+
+        // Fallback to normal download if server doesn't support ranges
+        if (!totalBytes) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            return;
+        }
+
+        const chunkSize = Math.ceil(totalBytes / THREAD_COUNT);
+        const chunks = new Array(THREAD_COUNT);
+        let downloadedBytes = 0;
+
+        progressCallback(0, totalBytes);
+
+        // Download a single chunk stream
+        async function fetchChunk(index, start, end) {
+            const res = await fetch(url, {
+                headers: { 'Range': `bytes=${start}-${end}` }
+            });
+            const reader = res.body.getReader();
+            const chunkData = new Uint8Array(end - start + 1);
+            let offset = 0;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunkData.set(value, offset);
+                offset += value.length;
+                downloadedBytes += value.length;
+                progressCallback(downloadedBytes, totalBytes);
+            }
+            chunks[index] = chunkData;
+        }
+
+        // Run parallel chunk workers
+        const promises = [];
+        for (let i = 0; i < THREAD_COUNT; i++) {
+            const start = i * chunkSize;
+            const end = Math.min(start + chunkSize - 1, totalBytes - 1);
+            promises.push(fetchChunk(i, start, end));
+        }
+
+        await Promise.all(promises);
+
+        // Combine chunks into single file Blob
+        const blob = new Blob(chunks, { type: 'video/mp4' });
+        const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = cleanName;
-        a.target = '_blank';
+        a.href = blobUrl;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
     }
 
-    // Inject download button on video page
+    // Inject UI on Video Page
     function initVideoPageDownloader() {
         if (document.getElementById('xv-download-button')) return;
 
@@ -199,7 +274,6 @@
 
         const videoData = extractVideoData();
         if (!videoData.sources || videoData.sources.length === 0) {
-            // Retry after player scripts initialize
             setTimeout(initVideoPageDownloader, 800);
             return;
         }
@@ -211,47 +285,98 @@
         wrapper.id = 'xv-download-button';
 
         const mainSource = videoData.sources[0];
+        const safeTitle = (videoData.title || 'video').replace(/[/\\?%*:|"<>]/g, '_') + '.mp4';
 
         wrapper.innerHTML = `
-            <a class="xv-download-btn" href="${mainSource.url}" target="_blank" download="${videoData.title.replace(/[/\\?%*:|"<>]/g, '_')}.mp4">
+            <button class="xv-download-btn" type="button">
                 <svg viewBox="0 0 24 24">
                     <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
                 </svg>
-                <span>Download MP4</span>
+                <span class="xv-btn-text">⚡ Turbo Download</span>
                 <span class="xv-quality-badge">${mainSource.label}</span>
-            </a>
+                <div class="xv-progress-bar"></div>
+            </button>
         `;
 
-        // If multiple qualities are available, add dropdown menu
         if (videoData.sources.length > 1) {
             const dropdown = document.createElement('div');
             dropdown.className = 'xv-download-dropdown';
             dropdown.innerHTML = videoData.sources.map(s => `
-                <a href="${s.url}" class="xv-download-item" download="${videoData.title}.mp4" target="_blank">
+                <div class="xv-download-item" data-url="${s.url}">
                     <span>${s.label}</span>
-                    <span>⬇️</span>
+                    <span>⚡ Fast Download</span>
+                </div>
+            `).join('') + `
+                <a href="${mainSource.url}" class="xv-download-item" target="_blank" download="${safeTitle}">
+                    <span>Standard Browser Download</span>
+                    <span>🔗</span>
                 </a>
-            `).join('');
+            `;
 
             wrapper.appendChild(dropdown);
             wrapper.addEventListener('mouseenter', () => dropdown.classList.add('show'));
             wrapper.addEventListener('mouseleave', () => dropdown.classList.remove('show'));
+
+            dropdown.querySelectorAll('.xv-download-item[data-url]').forEach(item => {
+                item.addEventListener('click', () => {
+                    startDownload(item.getAttribute('data-url'));
+                });
+            });
         }
 
-        // Intercept download click for cleaner filename triggering
         const btn = wrapper.querySelector('.xv-download-btn');
-        btn.addEventListener('click', function (e) {
+        const btnText = wrapper.querySelector('.xv-btn-text');
+        const progressBar = wrapper.querySelector('.xv-progress-bar');
+        let isDownloading = false;
+
+        async function startDownload(targetUrl) {
+            if (isDownloading) return;
+            isDownloading = true;
+            btn.classList.add('downloading');
+
+            try {
+                await turboDownload(targetUrl || mainSource.url, safeTitle, (received, total) => {
+                    const pct = Math.min(100, Math.round((received / total) * 100));
+                    const mbReceived = (received / (1024 * 1024)).toFixed(1);
+                    const mbTotal = (total / (1024 * 1024)).toFixed(1);
+                    btnText.textContent = `⚡ Downloading ${pct}% (${mbReceived}/${mbTotal}MB)`;
+                    progressBar.style.width = `${pct}%`;
+                });
+                btnText.textContent = '✅ Download Complete!';
+                setTimeout(() => {
+                    btnText.textContent = '⚡ Turbo Download';
+                    btn.classList.remove('downloading');
+                    progressBar.style.width = '0%';
+                    isDownloading = false;
+                }, 3000);
+            } catch (err) {
+                console.error('Turbo download error:', err);
+                btnText.textContent = 'Standard Download...';
+                // Fallback standard download
+                const a = document.createElement('a');
+                a.href = targetUrl || mainSource.url;
+                a.download = safeTitle;
+                a.target = '_blank';
+                a.click();
+                setTimeout(() => {
+                    btnText.textContent = '⚡ Turbo Download';
+                    btn.classList.remove('downloading');
+                    isDownloading = false;
+                }, 2000);
+            }
+        }
+
+        btn.addEventListener('click', (e) => {
             e.stopPropagation();
+            startDownload(mainSource.url);
         });
 
         targetContainer.appendChild(wrapper);
     }
 
-    // Initialize on page load and on dynamic URL changes
     function run() {
         if (window.location.pathname.includes('/video/') || document.querySelector('#kt_player')) {
             initVideoPageDownloader();
-            // In case player loads lazily
             setTimeout(initVideoPageDownloader, 1000);
             setTimeout(initVideoPageDownloader, 2500);
         }
@@ -263,7 +388,6 @@
         run();
     }
 
-    // Monitor SPA navigation if any
     let lastUrl = location.href;
     new MutationObserver(() => {
         const url = location.href;
