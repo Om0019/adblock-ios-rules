@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      20.0.0
-// @description  Perfect mobile 2-column grid via JS layout injection, visible checkboxes, and bulk downloader.
+// @version      21.0.0
+// @description  Safe mobile 2-column grid CSS, highly visible selection checkboxes, infinite scroll, and 1-click bulk stream downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
 // @match        *://pornhub.com/*
@@ -25,10 +25,114 @@
     let noMorePages = false;
 
     /* ==========================================================
-       1. STYLES (Clean UI & Checkboxes)
+       1. STYLES (Ultra-Safe Mobile Grid & UI)
        ========================================================== */
     const STYLES = `
-        /* 🔘 Checkboxes on video thumbnails (Super Visible) */
+        /* 📱 2-Column Mobile Grid (CSS Only) */
+        @media (max-width: 768px) {
+            /* Transform the direct wrapper of the videos into a grid */
+            ul#showAllChanelVideos,
+            ul#videoCategory,
+            ul.videos,
+            .videos-list,
+            .videoUList,
+            #mostRecentVideosSection {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px !important;
+                padding: 8px !important;
+                margin: 0 !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            /* Each individual video block */
+            li.videoBox, 
+            li.videoblock, 
+            li.pcVideoListItem {
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                height: auto !important;
+                float: none !important;
+            }
+
+            /* Force the inner wrapper to stack vertically */
+            .wrapVideoBlock,
+            .videoBox .wrap,
+            .video-wrapper {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 100% !important;
+            }
+
+            /* Make the thumbnail scale correctly */
+            .phimage,
+            .img-holder,
+            a.img,
+            .videoThumbnail {
+                width: 100% !important;
+                height: auto !important;
+                aspect-ratio: 16/9 !important;
+                position: relative !important;
+                overflow: hidden !important;
+                border-radius: 6px !important;
+                display: block !important;
+            }
+
+            .phimage img,
+            .img-holder img,
+            a.img img,
+            .videoThumbnail img {
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: cover !important;
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+            }
+
+            /* Clean up the title area below the image */
+            .thumbnail-info-wrapper, 
+            .thumbnail-info {
+                padding: 6px 0 !important;
+                width: 100% !important;
+            }
+
+            .title, .thumbnailTitle {
+                font-size: 11px !important;
+                font-weight: 600 !important;
+                color: #fff !important;
+                line-height: 1.3 !important;
+                margin: 0 !important;
+                white-space: normal !important;
+                display: -webkit-box !important;
+                -webkit-line-clamp: 2 !important;
+                -webkit-box-orient: vertical !important;
+                overflow: hidden !important;
+            }
+
+            /* Position the duration badge neatly */
+            .marker-overlays, .video-duration, .duration {
+                position: absolute !important;
+                bottom: 4px !important;
+                right: 4px !important;
+                font-size: 10px !important;
+                background: rgba(0,0,0,0.7) !important;
+                padding: 2px 4px !important;
+                border-radius: 4px !important;
+                z-index: 10 !important;
+            }
+
+            /* HIDE CLUTTER (NEVER hide .clearfix) */
+            .views, .added, .rating-container, .video-actions, .hd-thumbnail, .more-info {
+                display: none !important;
+            }
+        }
+
+        /* 🔘 Checkboxes on video thumbnails */
         .xv-card-checkbox-wrapper {
             position: absolute !important;
             top: 4px !important;
@@ -38,12 +142,12 @@
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            width: 32px !important;
-            height: 32px !important;
-            border-radius: 6px !important;
-            background: rgba(0, 0, 0, 0.75) !important;
-            border: 2px solid rgba(255, 255, 255, 0.95) !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.9) !important;
+            width: 34px !important;
+            height: 34px !important;
+            border-radius: 50% !important;
+            background: rgba(0, 0, 0, 0.7) !important;
+            border: 2px solid rgba(255, 255, 255, 0.9) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.8) !important;
             transition: all 0.2s ease !important;
             backdrop-filter: blur(4px) !important;
             -webkit-backdrop-filter: blur(4px) !important;
@@ -166,49 +270,6 @@
             font-size: 14px !important;
             grid-column: 1 / -1 !important;
         }
-        
-        /* 📱 Mobile Overrides for individual blocks */
-        @media (max-width: 768px) {
-            li.videoBox, li.videoblock {
-                width: 100% !important;
-                display: flex !important;
-                flex-direction: column !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                float: none !important;
-                height: auto !important;
-            }
-            .wrapVideoBlock {
-                display: flex !important;
-                flex-direction: column !important;
-            }
-            .phimage, a.img {
-                width: 100% !important;
-                height: auto !important;
-                aspect-ratio: 16/9 !important;
-                position: relative !important;
-                overflow: hidden !important;
-            }
-            .phimage img, a.img img {
-                width: 100% !important;
-                height: 100% !important;
-                object-fit: cover !important;
-                position: absolute !important;
-                top: 0 !important;
-                left: 0 !important;
-            }
-            .thumbnail-info-wrapper {
-                width: 100% !important;
-                padding: 4px 0 !important;
-            }
-            .title {
-                font-size: 12px !important;
-                line-height: 1.2 !important;
-                white-space: nowrap !important;
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
-            }
-        }
     `;
 
     function injectStyles() {
@@ -253,28 +314,7 @@
     }
 
     /* ==========================================================
-       2. JS-POWERED MOBILE GRID INJECTION
-       ========================================================== */
-    function enforceMobileGrid() {
-        if (window.innerWidth > 768) return;
-        
-        // Find the parent list containing the videos
-        const cards = document.querySelectorAll('li.videoBox, li.videoblock');
-        if (cards.length > 0) {
-            const container = cards[0].parentElement;
-            if (container && container.tagName === 'UL') {
-                container.style.cssText = 'display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; padding: 8px !important; margin: 0 !important; width: 100% !important; box-sizing: border-box !important;';
-            }
-        }
-        
-        // Hide clutter elements forcefully via inline style
-        document.querySelectorAll('.views, .added, .rating-container, .video-actions, .clearfix, .hd-thumbnail, .more-info').forEach(el => {
-            el.style.setProperty('display', 'none', 'important');
-        });
-    }
-
-    /* ==========================================================
-       3. STREAM EXTRACTOR
+       2. STREAM EXTRACTOR
        ========================================================== */
     async function extractRealStreamFromPage(videoPageUrl) {
         try {
@@ -302,7 +342,7 @@
     }
 
     /* ==========================================================
-       4. FLOATING DOCK UI
+       3. FLOATING DOCK UI
        ========================================================== */
     function updateDockUI() {
         let dock = document.getElementById('xv-bulk-action-dock');
@@ -368,11 +408,10 @@
     }
 
     /* ==========================================================
-       5. ATTACH CHECKBOXES TO CARDS
+       4. ATTACH CHECKBOXES TO CARDS
        ========================================================== */
     function scanCards() {
         injectStyles();
-        enforceMobileGrid();
 
         const cards = document.querySelectorAll('li.videoBox, li.videoblock, li.pcVideoListItem');
 
@@ -420,7 +459,7 @@
     }
 
     /* ==========================================================
-       6. INFINITE SCROLL
+       5. INFINITE SCROLL
        ========================================================== */
     async function loadNextPage() {
         if (isFetchingNextPage || noMorePages) return;
@@ -486,7 +525,6 @@
 
     function run() {
         injectStyles();
-        enforceMobileGrid();
         scanCards();
         updateDockUI();
 
@@ -501,10 +539,7 @@
         run();
     }
 
-    const observer = new MutationObserver(() => {
-        enforceMobileGrid();
-        scanCards();
-    });
+    const observer = new MutationObserver(() => scanCards());
     observer.observe(document.documentElement, { childList: true, subtree: true });
 
 })();
