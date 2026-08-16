@@ -1,20 +1,24 @@
 // ==UserScript==
 // @name         X-Video Tube Video Downloader (Turbo Multi-Threaded)
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      2.0.0
-// @description  High-speed multi-threaded MP4 video downloader for x-video.tube with parallel chunk acceleration & progress bar
+// @version      2.1.0
+// @description  High-speed multi-threaded MP4 video downloader for x-video.tube with parallel chunk acceleration & CORS bypass
 // @author       Antigravity
 // @match        https://x-video.tube/*
 // @match        https://*.x-video.tube/*
 // @icon         https://x-video.tube/favicon-32x32.png
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @grant        GM.xmlHttpRequest
+// @connect      x-video.tube
+// @connect      *.x-video.tube
+// @connect      *
 // @run-at       document-end
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    const THREAD_COUNT = 6; // Number of parallel chunk connections to bypass server rate limits
+    const THREAD_COUNT = 6; // Number of parallel chunk connections
 
     // UI Styles
     const STYLES = `
@@ -41,6 +45,8 @@
             cursor: pointer;
             box-shadow: 0 2px 8px rgba(229, 9, 20, 0.4);
             transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
         }
         .xv-download-btn:hover {
             background: linear-gradient(135deg, #ff1a25, #d60813);
@@ -48,24 +54,24 @@
             transform: translateY(-1px);
         }
         .xv-download-btn.downloading {
-            background: #222222;
+            background: #222222 !important;
             border: 1px solid #e50914;
             cursor: wait;
-            transform: none;
+            transform: none !important;
         }
         .xv-download-btn svg {
             width: 16px;
             height: 16px;
             fill: currentColor;
+            flex-shrink: 0;
         }
         .xv-progress-bar {
             position: absolute;
             bottom: 0;
             left: 0;
-            height: 3px;
+            height: 4px;
             background: #00ff66;
             width: 0%;
-            border-radius: 0 0 4px 4px;
             transition: width 0.2s ease;
         }
         .xv-quality-badge {
@@ -118,6 +124,52 @@
         style.id = 'xv-downloader-styles';
         style.textContent = STYLES;
         document.head.appendChild(style);
+    }
+
+    // CORS-Bypassing HTTP Request Wrapper
+    function makeRequest(url, headers = {}, responseType = 'arraybuffer') {
+        const gmReq = (typeof GM_xmlhttpRequest !== 'undefined') ? GM_xmlhttpRequest :
+                      (typeof GM !== 'undefined' && GM.xmlHttpRequest) ? GM.xmlHttpRequest : null;
+
+        if (gmReq) {
+            return new Promise((resolve, reject) => {
+                gmReq({
+                    method: 'GET',
+                    url: url,
+                    headers: headers,
+                    responseType: responseType,
+                    onload: (res) => {
+                        if (res.status >= 200 && res.status < 400) {
+                            resolve({
+                                status: res.status,
+                                response: res.response,
+                                headers: {
+                                    get: (h) => {
+                                        const match = res.responseHeaders.match(new RegExp('^' + h + ':\\s*(.*)$', 'im'));
+                                        return match ? match[1].trim() : null;
+                                    }
+                                }
+                            });
+                        } else {
+                            reject(new Error(`HTTP ${res.status}: ${res.statusText}`));
+                        }
+                    },
+                    onerror: (err) => reject(err),
+                    ontimeout: () => reject(new Error('Request timed out'))
+                });
+            });
+        }
+
+        // Standard fetch fallback
+        return fetch(url, { headers: headers }).then(async (res) => {
+            if (!res.ok && res.status !== 206) throw new Error(`HTTP ${res.status}`);
+            const buf = await res.arrayBuffer();
+            return {
+                status: res.status,
+                response: buf,
+                headers: res.headers
+            };
+        });
     }
 
     // Extract video stream metadata
@@ -191,26 +243,17 @@
 
     // High-Speed Multi-Threaded Parallel Chunk Downloader
     async function turboDownload(url, filename, progressCallback) {
-        // Step 1: Get Content-Length via probe Range request
-        const probeResp = await fetch(url, {
-            headers: { 'Range': 'bytes=0-0' }
-        });
-
-        const rangeHeader = probeResp.headers.get('Content-Range');
+        // Step 1: Probe total file size
+        const probe = await makeRequest(url, { 'Range': 'bytes=0-0' });
         let totalBytes = 0;
-
-        if (rangeHeader) {
-            const match = rangeHeader.match(/\/(\d+)/);
+        const cr = probe.headers.get('Content-Range');
+        if (cr) {
+            const match = cr.match(/\/(\d+)/);
             if (match) totalBytes = parseInt(match[1], 10);
         }
 
-        // Fallback to normal download if server doesn't support ranges
         if (!totalBytes) {
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            return;
+            throw new Error('Unable to determine video size for multi-threading');
         }
 
         const chunkSize = Math.ceil(totalBytes / THREAD_COUNT);
@@ -219,37 +262,23 @@
 
         progressCallback(0, totalBytes);
 
-        // Download a single chunk stream
-        async function fetchChunk(index, start, end) {
-            const res = await fetch(url, {
-                headers: { 'Range': `bytes=${start}-${end}` }
-            });
-            const reader = res.body.getReader();
-            const chunkData = new Uint8Array(end - start + 1);
-            let offset = 0;
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                chunkData.set(value, offset);
-                offset += value.length;
-                downloadedBytes += value.length;
-                progressCallback(downloadedBytes, totalBytes);
-            }
-            chunks[index] = chunkData;
-        }
-
-        // Run parallel chunk workers
+        // Fetch each segment in parallel
         const promises = [];
         for (let i = 0; i < THREAD_COUNT; i++) {
             const start = i * chunkSize;
             const end = Math.min(start + chunkSize - 1, totalBytes - 1);
-            promises.push(fetchChunk(i, start, end));
+
+            promises.push((async (index, s, e) => {
+                const res = await makeRequest(url, { 'Range': `bytes=${s}-${e}` });
+                chunks[index] = res.response;
+                downloadedBytes += (e - s + 1);
+                progressCallback(downloadedBytes, totalBytes);
+            })(i, start, end));
         }
 
         await Promise.all(promises);
 
-        // Combine chunks into single file Blob
+        // Build Blob and trigger download
         const blob = new Blob(chunks, { type: 'video/mp4' });
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -258,7 +287,7 @@
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
     }
 
     // Inject UI on Video Page
@@ -304,11 +333,11 @@
             dropdown.innerHTML = videoData.sources.map(s => `
                 <div class="xv-download-item" data-url="${s.url}">
                     <span>${s.label}</span>
-                    <span>⚡ Fast Download</span>
+                    <span>⚡ Turbo</span>
                 </div>
             `).join('') + `
                 <a href="${mainSource.url}" class="xv-download-item" target="_blank" download="${safeTitle}">
-                    <span>Standard Browser Download</span>
+                    <span>Standard Direct Download</span>
                     <span>🔗</span>
                 </a>
             `;
@@ -348,11 +377,10 @@
                     btn.classList.remove('downloading');
                     progressBar.style.width = '0%';
                     isDownloading = false;
-                }, 3000);
+                }, 3500);
             } catch (err) {
                 console.error('Turbo download error:', err);
                 btnText.textContent = 'Standard Download...';
-                // Fallback standard download
                 const a = document.createElement('a');
                 a.href = targetUrl || mainSource.url;
                 a.download = safeTitle;
