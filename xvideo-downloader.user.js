@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Pornhub & Model Profile Bulk Downloader (Infinite Scroll & Premium UI)
+// @name         Pornhub & Model Profile Bulk Downloader (Infinite Scroll + Mobile Grid)
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      17.0.0
-// @description  Infinite scrolling on profiles, beautiful bulk selection UI, and 1-click master stream extraction (skipping ads).
+// @version      18.0.0
+// @description  Mobile 2-column grid view, Infinite scrolling on profiles, beautiful bulk selection UI, and 1-click master stream extraction.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
 // @match        *://pornhub.com/*
@@ -16,24 +16,86 @@
 (function () {
     'use strict';
 
-    // Prevent running in nested iframes
     if (window.self !== window.top) {
         if (window.innerWidth < 120 || window.innerHeight < 120) return;
     }
 
-    const selectedVideos = new Map(); // viewkey/url -> { title, url, cardEl }
+    const selectedVideos = new Map();
     let isFetchingNextPage = false;
     let noMorePages = false;
 
     /* ==========================================================
-       PREMIUM STYLES & ANIMATIONS
+       PREMIUM STYLES & MOBILE GRID INJECTION
        ========================================================== */
     const STYLES = `
+        /* 📱 Mobile 2-Column Grid Layout Override */
+        @media (max-width: 768px) {
+            ul#showAllChanelVideos,
+            ul#videoCategory,
+            ul.videos,
+            .videoUList,
+            .container.videos,
+            #mostRecentVideosSection,
+            .videos-list,
+            .videoWrapper {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px !important;
+                padding: 4px !important;
+                margin: 0 !important;
+            }
+            
+            /* Make each video block take exactly its cell space */
+            li.videoblock,
+            li.pcVideoListItem,
+            .videoBox,
+            .wrapVideoBlock,
+            li.video-item {
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                float: none !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+
+            .phimage,
+            .img-holder {
+                width: 100% !important;
+                height: auto !important;
+                aspect-ratio: 16/9 !important;
+            }
+
+            .phimage img,
+            .img-holder img {
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: cover !important;
+            }
+
+            /* Hide unnecessary UI elements on mobile to keep the grid clean */
+            .marker-overlays,
+            .video-duration,
+            .views,
+            .added,
+            .rating-container {
+                font-size: 10px !important;
+            }
+            .title, .thumbnailTitle {
+                font-size: 11px !important;
+                line-height: 1.2 !important;
+                margin-top: 4px !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+        }
+
         /* Checkbox on each video thumbnail card */
         .xv-card-checkbox-wrapper {
             position: absolute !important;
-            top: 10px !important;
-            left: 10px !important;
+            top: 4px !important;
+            left: 4px !important;
             z-index: 99 !important;
             cursor: pointer !important;
             display: flex !important;
@@ -42,25 +104,34 @@
             width: 32px !important;
             height: 32px !important;
             border-radius: 50% !important;
-            background: rgba(18, 18, 18, 0.4) !important;
-            border: 2px solid rgba(255, 255, 255, 0.6) !important;
+            background: rgba(18, 18, 18, 0.5) !important;
+            border: 2px solid rgba(255, 255, 255, 0.8) !important;
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
             backdrop-filter: blur(8px) !important;
             -webkit-backdrop-filter: blur(8px) !important;
             box-sizing: border-box !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+        }
+
+        @media (min-width: 769px) {
+            .xv-card-checkbox-wrapper {
+                top: 8px !important;
+                left: 8px !important;
+                width: 36px !important;
+                height: 36px !important;
+            }
         }
 
         .xv-card-checkbox-wrapper:hover {
             border-color: #ffffff !important;
-            background: rgba(18, 18, 18, 0.8) !important;
+            background: rgba(18, 18, 18, 0.9) !important;
             transform: scale(1.1) !important;
         }
 
         .xv-card-checkbox-wrapper.checked {
             background: #e50914 !important;
             border-color: #e50914 !important;
-            box-shadow: 0 4px 16px rgba(229, 9, 20, 0.6) !important;
+            box-shadow: 0 4px 16px rgba(229, 9, 20, 0.7) !important;
             transform: scale(1.15) !important;
         }
 
@@ -87,21 +158,24 @@
             bottom: 24px !important;
             left: 50% !important;
             transform: translateX(-50%) translateY(150px) !important;
-            background: rgba(18, 18, 18, 0.85) !important;
-            backdrop-filter: blur(16px) saturate(180%) !important;
-            -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+            background: rgba(18, 18, 18, 0.9) !important;
+            backdrop-filter: blur(20px) saturate(200%) !important;
+            -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             border-radius: 40px !important;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255,255,255,0.05) inset !important;
-            padding: 10px 20px !important;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255,255,255,0.05) inset !important;
+            padding: 10px 16px !important;
             display: flex !important;
             align-items: center !important;
-            gap: 16px !important;
+            gap: 12px !important;
             z-index: 2147483647 !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif !important;
             box-sizing: border-box !important;
             transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
             pointer-events: auto !important;
+            width: 92vw !important;
+            max-width: 480px !important;
+            justify-content: space-between !important;
         }
 
         .xv-bulk-dock.show {
@@ -110,56 +184,48 @@
 
         .xv-dock-count {
             color: #aaaaaa !important;
-            font-size: 14px !important;
+            font-size: 13px !important;
             font-weight: 500 !important;
             white-space: nowrap !important;
-            letter-spacing: 0.2px !important;
             display: flex !important;
             align-items: center !important;
-            gap: 8px !important;
+            gap: 6px !important;
         }
 
         .xv-dock-count span {
             color: #ffffff !important;
             background: #e50914 !important;
-            font-size: 14px !important;
+            font-size: 13px !important;
             font-weight: 700 !important;
-            padding: 2px 10px !important;
-            border-radius: 12px !important;
-            box-shadow: 0 2px 8px rgba(229, 9, 20, 0.4) !important;
+            padding: 2px 8px !important;
+            border-radius: 10px !important;
         }
 
         .xv-dock-btn {
             background: linear-gradient(135deg, #e50914, #b80710) !important;
             color: #ffffff !important;
             border: none !important;
-            border-radius: 24px !important;
-            padding: 10px 20px !important;
-            font-size: 14px !important;
-            font-weight: 600 !important;
+            border-radius: 20px !important;
+            padding: 10px 14px !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
             cursor: pointer !important;
             display: inline-flex !important;
             align-items: center !important;
-            gap: 8px !important;
+            gap: 6px !important;
             box-shadow: 0 4px 12px rgba(229, 9, 20, 0.4) !important;
             transition: all 0.2s ease !important;
             white-space: nowrap !important;
-            letter-spacing: 0.3px !important;
         }
 
         .xv-dock-btn:hover {
             transform: translateY(-2px) scale(1.02) !important;
-            box-shadow: 0 6px 16px rgba(229, 9, 20, 0.6) !important;
             background: linear-gradient(135deg, #ff1a25, #d60812) !important;
         }
 
-        .xv-dock-btn:active {
-            transform: translateY(1px) scale(0.98) !important;
-        }
-
         .xv-dock-btn svg {
-            width: 16px !important;
-            height: 16px !important;
+            width: 15px !important;
+            height: 15px !important;
             fill: #ffffff !important;
         }
 
@@ -168,13 +234,19 @@
             color: #dddddd !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
-            padding: 9px 16px !important;
+            padding: 8px 12px !important;
+            border-radius: 18px !important;
+            font-size: 12px !important;
         }
 
         .xv-dock-btn.secondary:hover {
             background: rgba(255, 255, 255, 0.15) !important;
             color: #ffffff !important;
-            border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+
+        .xv-dock-actions {
+            display: flex !important;
+            gap: 8px !important;
         }
 
         /* Toast notification */
@@ -191,8 +263,8 @@
             padding: 12px 24px !important;
             border-radius: 30px !important;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important;
-            font-size: 14px !important;
-            font-weight: 500 !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
             z-index: 2147483647 !important;
             text-align: center !important;
@@ -209,32 +281,28 @@
             opacity: 1 !important;
         }
 
-        /* Infinite Scroll Loader */
-        .xv-infinite-loader {
-            text-align: center !important;
-            padding: 30px 0 !important;
-            color: #888888 !important;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-            font-size: 14px !important;
-            font-weight: 600 !important;
-            width: 100% !important;
-            clear: both !important;
-        }
-
         .xv-spinner {
             display: inline-block !important;
-            width: 24px !important;
-            height: 24px !important;
+            width: 20px !important;
+            height: 20px !important;
             border: 3px solid rgba(229, 9, 20, 0.3) !important;
             border-radius: 50% !important;
             border-top-color: #e50914 !important;
             animation: xvSpin 1s ease-in-out infinite !important;
-            vertical-align: middle !important;
-            margin-right: 10px !important;
         }
 
         @keyframes xvSpin {
             to { transform: rotate(360deg); }
+        }
+        
+        .xv-infinite-loader {
+            width: 100% !important;
+            text-align: center !important;
+            padding: 30px 0 !important;
+            color: #aaaaaa !important;
+            font-weight: 600 !important;
+            clear: both !important;
+            grid-column: 1 / -1 !important;
         }
     `;
 
@@ -255,7 +323,6 @@
             document.body.appendChild(toast);
         }
         
-        // Use animation reset
         toast.classList.remove('show');
         void toast.offsetWidth; // trigger reflow
         
@@ -298,7 +365,6 @@
             });
             const html = await res.text();
 
-            // 1. Check flashvars in HTML
             const lines = html.split('\n');
             for (const line of lines) {
                 if (line.includes('var flashvars_') && line.includes('=')) {
@@ -307,7 +373,6 @@
                         const data = JSON.parse(jsonPart);
                         const defs = (data.mediaDefinitions || []).filter(d => d.videoUrl && !d.videoUrl.includes('/ads/'));
                         if (defs.length > 0) {
-                            // Sort for highest quality (1080p -> 720p -> 480p)
                             defs.sort((a, b) => (parseInt(b.quality || b.height, 10) || 0) - (parseInt(a.quality || a.height, 10) || 0));
                             return defs[0].videoUrl;
                         }
@@ -315,13 +380,11 @@
                 }
             }
 
-            // 2. Regex fallback for master.m3u8
             const m3u8Match = html.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/);
             if (m3u8Match && !m3u8Match[0].includes('/ads/')) {
                 return m3u8Match[0].replace(/\\/g, '');
             }
 
-            // 3. Fallback to video_url
             const vurlMatch = html.match(/video_url:\s*['"]([^'"]+)['"]/);
             if (vurlMatch && !vurlMatch[1].includes('/ads/')) {
                 return vurlMatch[1];
@@ -346,17 +409,17 @@
             
             dock.innerHTML = `
                 <div class="xv-dock-count">Selected <span>0</span></div>
-                <button class="xv-dock-btn" id="xv-bulk-copy-btn" type="button">
-                    <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-                    <span class="btn-label">Copy All Links</span>
-                </button>
-                <button class="xv-dock-btn secondary" id="xv-bulk-select-all-btn" type="button">Select All</button>
-                <button class="xv-dock-btn secondary" id="xv-bulk-clear-btn" type="button">Clear</button>
+                <div class="xv-dock-actions">
+                    <button class="xv-dock-btn" id="xv-bulk-copy-btn" type="button">
+                        <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                        <span class="btn-label">Copy All</span>
+                    </button>
+                    <button class="xv-dock-btn secondary" id="xv-bulk-clear-btn" type="button">Clear</button>
+                </div>
             `;
             
             document.body.appendChild(dock);
 
-            // 1. Copy All Stream URLs Action
             const copyBtn = dock.querySelector('#xv-bulk-copy-btn');
             copyBtn.addEventListener('click', async () => {
                 if (selectedVideos.size === 0) return;
@@ -367,10 +430,10 @@
                 const total = items.length;
                 const extractedUrls = [];
 
-                showToast(`<div class="xv-spinner" style="width:16px;height:16px;margin-right:8px;border-width:2px"></div> Extracting streams for ${total} videos...`);
+                showToast(`<div class="xv-spinner" style="width:14px;height:14px;border-width:2px"></div> Extracting ${total} videos...`);
 
                 for (let i = 0; i < total; i++) {
-                    btnLabel.textContent = `Extracting ${i + 1}/${total}...`;
+                    btnLabel.textContent = `${i + 1}/${total}...`;
                     const item = items[i];
                     const streamUrl = await extractRealStreamFromPage(item.url);
                     if (streamUrl) {
@@ -382,26 +445,19 @@
                     const outputText = extractedUrls.join('\n');
                     copyToClipboard(outputText);
                     btnLabel.textContent = '✅ Copied!';
-                    showToast(`✅ Copied ${extractedUrls.length} stream URLs (one per line) to clipboard!`);
+                    showToast(`✅ Copied ${extractedUrls.length} links!`);
                     
-                    // Clear selection on success
                     setTimeout(() => {
                         dock.querySelector('#xv-bulk-clear-btn').click();
                     }, 2000);
                 } else {
                     showToast('❌ Could not extract stream URLs.');
-                    btnLabel.textContent = 'Copy All Links';
+                    btnLabel.textContent = 'Copy All';
                 }
 
                 copyBtn.disabled = false;
             });
 
-            // 2. Select All
-            dock.querySelector('#xv-bulk-select-all-btn').addEventListener('click', () => {
-                document.querySelectorAll('.xv-card-checkbox-wrapper:not(.checked)').forEach(cb => cb.click());
-            });
-
-            // 3. Clear
             dock.querySelector('#xv-bulk-clear-btn').addEventListener('click', () => {
                 selectedVideos.clear();
                 document.querySelectorAll('.xv-card-checkbox-wrapper.checked').forEach(cb => cb.classList.remove('checked'));
@@ -411,7 +467,7 @@
 
         if (count > 0) {
             dock.querySelector('.xv-dock-count span').textContent = count;
-            dock.querySelector('.btn-label').textContent = 'Copy All Links';
+            dock.querySelector('.btn-label').textContent = 'Copy All';
             dock.classList.add('show');
         } else {
             dock.classList.remove('show');
@@ -424,11 +480,13 @@
     function scanCards() {
         injectStyles();
 
-        // Targets: Pornhub & tube video blocks
+        // Target every video card/wrapper across desktop & mobile
         const cardSelectors = [
             'li.videoblock',
             'li.pcVideoListItem',
-            '.videoBox'
+            '.videoBox',
+            '.wrapVideoBlock',
+            'li.video-item'
         ];
 
         const cards = document.querySelectorAll(cardSelectors.join(', '));
@@ -478,13 +536,16 @@
     }
 
     /* ==========================================================
-       INFINITE SCROLL LISTENER (NO PAGINATION NEEDED)
+       UNIVERSAL INFINITE SCROLL (MOBILE & DESKTOP)
        ========================================================== */
     async function loadNextPage() {
         if (isFetchingNextPage || noMorePages) return;
 
-        // Find the "Next" button/link
-        const nextLink = document.querySelector('link[rel="next"]') || document.querySelector('li.page_next a');
+        // Find Next Page Link
+        const nextLink = document.querySelector('link[rel="next"]') || 
+                         document.querySelector('li.page_next a') || 
+                         document.querySelector('.pagination-next a');
+                         
         if (!nextLink || !nextLink.href) {
             noMorePages = true;
             return;
@@ -493,14 +554,28 @@
         isFetchingNextPage = true;
         const nextPageUrl = nextLink.href;
         
-        // Show loading spinner at bottom
-        let container = document.querySelector('#videoCategory, ul#showAllChanelVideos, .video-wrapper, .videoUList');
-        if (!container) container = document.querySelector('.container, .wrapper') || document.body;
+        // Find main container to append to
+        let container = document.querySelector('ul#showAllChanelVideos') || 
+                        document.querySelector('ul#videoCategory') || 
+                        document.querySelector('ul.videos') || 
+                        document.querySelector('.videoUList') ||
+                        document.querySelector('.container.videos') ||
+                        document.querySelector('#mostRecentVideosSection');
+                        
+        if (!container) {
+            const anyCard = document.querySelector('li.videoblock, .videoBox');
+            if (anyCard) container = anyCard.parentElement;
+        }
+        
+        if (!container) {
+            isFetchingNextPage = false;
+            return;
+        }
         
         const loader = document.createElement('div');
         loader.className = 'xv-infinite-loader';
-        loader.innerHTML = `<div class="xv-spinner"></div> Loading more videos...`;
-        container.parentElement.appendChild(loader);
+        loader.innerHTML = `<div class="xv-spinner" style="width:20px;height:20px;border-width:2px;vertical-align:middle;margin-right:8px;"></div> Loading more videos...`;
+        container.appendChild(loader);
 
         try {
             const res = await fetch(nextPageUrl);
@@ -510,15 +585,14 @@
             const doc = parser.parseFromString(html, 'text/html');
             
             // Extract new video blocks
-            const newCards = doc.querySelectorAll('li.videoblock, li.pcVideoListItem, .videoBox');
+            const newCards = doc.querySelectorAll('li.videoblock, li.pcVideoListItem, .videoBox, .wrapVideoBlock, li.video-item');
             if (newCards.length > 0) {
                 newCards.forEach(card => {
-                    // Append to existing container
                     container.appendChild(card);
                 });
                 
-                // Update pagination links on current page so the next scroll fetches the *following* page
-                const newNextLink = doc.querySelector('link[rel="next"]') || doc.querySelector('li.page_next a');
+                // Update pagination
+                const newNextLink = doc.querySelector('link[rel="next"]') || doc.querySelector('li.page_next a') || doc.querySelector('.pagination-next a');
                 if (newNextLink) {
                     if (document.querySelector('link[rel="next"]')) {
                         document.querySelector('link[rel="next"]').href = newNextLink.href;
@@ -528,17 +602,14 @@
                     }
                 } else {
                     noMorePages = true;
-                    if (document.querySelector('link[rel="next"]')) document.querySelector('link[rel="next"]').remove();
-                    if (document.querySelector('li.page_next a')) document.querySelector('li.page_next a').remove();
                 }
 
-                // Attach checkboxes to the newly injected cards
                 scanCards();
             } else {
                 noMorePages = true;
             }
         } catch (e) {
-            console.error('Infinite scroll fetch error:', e);
+            console.error('Infinite scroll error:', e);
         } finally {
             loader.remove();
             isFetchingNextPage = false;
@@ -552,8 +623,7 @@
         const windowHeight = window.innerHeight;
         const documentHeight = document.documentElement.scrollHeight;
 
-        // If user is within 1200px of the bottom, load next page
-        if (scrollY + windowHeight >= documentHeight - 1200) {
+        if (scrollY + windowHeight >= documentHeight - 1600) {
             loadNextPage();
         }
     }
@@ -563,11 +633,9 @@
         scanCards();
         updateDockUI();
 
-        // Listen for scrolling
         window.addEventListener('scroll', checkScroll, { passive: true });
         
-        // Hide standard pagination wrapper since we infinite scroll
-        const paginations = document.querySelectorAll('.pagination3, .pagination');
+        const paginations = document.querySelectorAll('.pagination3, .pagination, .pagination-container');
         paginations.forEach(p => p.style.display = 'none');
     }
 
@@ -577,10 +645,9 @@
         run();
     }
 
-    // Backup interval for dynamic SPAs
     const observer = new MutationObserver(() => {
         scanCards();
-        const paginations = document.querySelectorAll('.pagination3, .pagination');
+        const paginations = document.querySelectorAll('.pagination3, .pagination, .pagination-container');
         paginations.forEach(p => p.style.display = 'none');
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
