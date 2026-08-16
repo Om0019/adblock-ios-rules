@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      22.1.0
+// @version      22.2.0
 // @description  Flawless mobile 2-column grid using actual mobile DOM selectors, visible checkboxes, and 1-click bulk stream downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
@@ -458,23 +458,30 @@
     }
 
     /* ==========================================================
-       5. INFINITE SCROLL
+       5. INFINITE SCROLL (BULLETPROOF STATE-DRIVEN)
        ========================================================== */
+    let currentNextUrl = null;
+    let initializedPagination = false;
+
     async function loadNextPage() {
         if (isFetchingNextPage || noMorePages) return;
 
-        const nextLink = document.querySelector('link[rel="next"]') || 
-                         document.querySelector('li.page_next a');
-                         
-        if (!nextLink || !nextLink.href) {
+        // Initialize the first next page URL on the very first trigger
+        if (!initializedPagination) {
+            const firstNext = document.querySelector('link[rel="next"]');
+            currentNextUrl = firstNext ? firstNext.href : null;
+            initializedPagination = true;
+        }
+
+        if (!currentNextUrl) {
             noMorePages = true;
             return;
         }
 
         isFetchingNextPage = true;
         
-        // Find container by looking for the first card's parent
-        const anyCard = document.querySelector('ul.videoList > li, ul.videos > li, li.videoBox, li.videoblock');
+        // Find container to append to
+        const anyCard = document.querySelector('ul.videoList > li, ul.videos > li, li.videoBox, li.videoblock, li.pcVideoListItem');
         if (!anyCard || !anyCard.parentElement) {
             isFetchingNextPage = false;
             return;
@@ -484,32 +491,42 @@
         
         const loader = document.createElement('div');
         loader.className = 'xv-infinite-loader';
-        loader.innerHTML = `⏳ Loading more...`;
+        loader.innerHTML = `⏳ Loading more videos...`;
         container.parentElement.appendChild(loader);
 
         try {
-            const res = await fetch(nextLink.href);
+            const res = await fetch(currentNextUrl);
             const html = await res.text();
             
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             
-            const newCards = doc.querySelectorAll('ul.videoList > li, ul.videos > li, li.videoBox, li.videoblock');
+            // Extract the new video cards
+            const newCards = doc.querySelectorAll('ul.videoList > li, ul.videos > li, li.videoBox, li.videoblock, li.pcVideoListItem');
             if (newCards.length > 0) {
                 newCards.forEach(card => container.appendChild(card));
                 
-                const newNextLink = doc.querySelector('link[rel="next"]') || doc.querySelector('li.page_next a');
-                if (newNextLink) {
-                    if (document.querySelector('link[rel="next"]')) document.querySelector('link[rel="next"]').href = newNextLink.href;
-                    if (document.querySelector('li.page_next a')) document.querySelector('li.page_next a').href = newNextLink.href;
+                // Update our state with the next page's "Next" link
+                const newNextLink = doc.querySelector('link[rel="next"]');
+                if (newNextLink && newNextLink.href) {
+                    currentNextUrl = newNextLink.href;
                 } else {
+                    currentNextUrl = null;
                     noMorePages = true;
+                    
+                    const endMsg = document.createElement('div');
+                    endMsg.className = 'xv-infinite-loader';
+                    endMsg.innerHTML = `✅ All videos loaded`;
+                    container.parentElement.appendChild(endMsg);
                 }
+                
+                // Attach checkboxes to the newly injected cards
                 scanCards();
             } else {
                 noMorePages = true;
             }
         } catch (e) {
+            console.error('Infinite scroll fetch error:', e);
         } finally {
             loader.remove();
             isFetchingNextPage = false;
@@ -518,7 +535,9 @@
 
     function checkScroll() {
         if (noMorePages || isFetchingNextPage) return;
-        if ((window.scrollY + window.innerHeight) >= (document.documentElement.scrollHeight - 1600)) {
+        
+        // 800px threshold is safer for mobile screens to prevent endless loops
+        if ((window.scrollY + window.innerHeight) >= (document.documentElement.scrollHeight - 800)) {
             loadNextPage();
         }
     }
