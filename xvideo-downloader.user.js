@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      24.0.0
+// @version      25.0.0
 // @description  Flawless multi-section handling (Most Recent + Uploaded), bulletproof infinite scroll, and bulk downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
@@ -299,50 +299,23 @@
         toast.hideTimeout = setTimeout(() => toast.classList.remove('show'), duration);
     }
 
-    function downloadM3uFile(text, filename) {
-        const blob = new Blob([text], { type: 'application/vnd.apple.mpegurl' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    /* ==========================================================
-       2. STREAM EXTRACTOR
-       ========================================================== */
-    async function extractRealStreamFromPage(videoPageUrl) {
-        try {
-            const res = await fetch(videoPageUrl, { headers: { 'Referer': location.href } });
-            const html = await res.text();
-
-            const flashvarsMatch = html.match(/var flashvars_\d+\s*=\s*({.*?});/);
-            if (flashvarsMatch) {
-                try {
-                    const data = JSON.parse(flashvarsMatch[1]);
-                    const defs = (data.mediaDefinitions || []).filter(d => d.videoUrl && !d.videoUrl.includes('/ads/'));
-                    if (defs.length > 0) {
-                        defs.sort((a, b) => (parseInt(b.quality, 10) || 0) - (parseInt(a.quality, 10) || 0));
-                        return defs[0].videoUrl;
-                    }
-                } catch (e) {
-                    console.error('JSON parse error:', e);
-                }
-            }
-
-            const m3u8Match = html.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/);
-            if (m3u8Match && !m3u8Match[0].includes('/ads/')) return m3u8Match[0].replace(/\\/g, '');
-        } catch (e) {
-            console.error('Fetch error:', e);
+    function copyToClipboard(text) {
+        if (typeof GM_setClipboard !== 'undefined') {
+            GM_setClipboard(text);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
         }
-        return null;
     }
 
     /* ==========================================================
-       3. FLOATING DOCK UI
+       2. FLOATING DOCK UI
        ========================================================== */
     function updateDockUI() {
         let dock = document.getElementById('xv-bulk-action-dock');
@@ -356,50 +329,28 @@
             dock.innerHTML = `
                 <div class="xv-dock-count">🛒 <span>0</span></div>
                 <div style="display:flex; gap:10px;">
-                    <button class="xv-dock-btn" id="xv-bulk-copy-btn">📥 Download List</button>
+                    <button class="xv-dock-btn" id="xv-bulk-copy-btn">🚀 Copy Links</button>
                     <button class="xv-dock-btn secondary" id="xv-bulk-clear-btn">Clear</button>
                 </div>
             `;
             
             document.body.appendChild(dock);
 
-            dock.querySelector('#xv-bulk-copy-btn').addEventListener('click', async (e) => {
-                const btn = e.target;
+            dock.querySelector('#xv-bulk-copy-btn').addEventListener('click', (e) => {
                 if (selectedVideos.size === 0) return;
                 
-                btn.disabled = true;
                 const items = Array.from(selectedVideos.values());
-                const extractedUrls = [];
-
-                showToast(`⏳ Extracting ${items.length} videos...`);
-
-                for (let i = 0; i < items.length; i++) {
-                    btn.textContent = `${i + 1}/${items.length}`;
-                    const streamUrl = await extractRealStreamFromPage(items[i].url);
-                    if (streamUrl) {
-                        extractedUrls.push(streamUrl);
-                        items[i].extractedUrl = streamUrl; // Store the extracted URL back into the item
-                    }
-                }
-
-                if (extractedUrls.length > 0) {
-                    let m3uText = "#EXTM3U\n";
-                    for (let i = 0; i < items.length; i++) {
-                        if (items[i].extractedUrl) {
-                            m3uText += `#EXTINF:-1,${items[i].title}\n`;
-                            m3uText += `${items[i].extractedUrl}\n`;
-                        }
-                    }
-                    
-                    downloadM3uFile(m3uText, `Pornhub_${new Date().toISOString().slice(0,10)}.m3u8`);
-                    btn.textContent = '✅ Done';
-                    showToast(`✅ Downloaded playlist!`);
-                    setTimeout(() => dock.querySelector('#xv-bulk-clear-btn').click(), 2000);
-                } else {
-                    showToast('❌ Failed to extract streams.');
-                    btn.textContent = '📥 Download List';
-                }
-                btn.disabled = false;
+                const urls = items.map(item => item.url);
+                
+                copyToClipboard(urls.join('\n'));
+                
+                const btn = e.target;
+                btn.textContent = '✅ Copied!';
+                showToast(`✅ Copied ${urls.length} video links!`);
+                setTimeout(() => {
+                    dock.querySelector('#xv-bulk-clear-btn').click();
+                    btn.textContent = '🚀 Copy Links';
+                }, 2000);
             });
 
             dock.querySelector('#xv-bulk-clear-btn').addEventListener('click', () => {
@@ -411,7 +362,7 @@
 
         if (count > 0) {
             dock.querySelector('.xv-dock-count span').textContent = count;
-            dock.querySelector('#xv-bulk-copy-btn').textContent = '📥 Download List';
+            dock.querySelector('#xv-bulk-copy-btn').textContent = '🚀 Copy Links';
             dock.classList.add('show');
         } else {
             dock.classList.remove('show');
