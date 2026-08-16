@@ -1,0 +1,26 @@
+# AdBlock for iOS DNS Proxy rules
+# Designed for AdBlock by FutureMind (iOS)
+# Import this file via "Settings" -> "Import DNS rules" into the "0.0.0.0, ::" group
+
+# --- x-video.tube Ad & Tracking Networks ---
+Global Adservers/ExoClick/*.magsrv.com
+Global Adservers/ExoClick/magsrv.com
+Global Adservers/ExoClick/*.happyleafmotion.com
+Global Adservers/ExoClick/happyleafmotion.com
+Global Adservers/ExoClick/*.exacdn.com
+Global Adservers/ExoClick/exacdn.com
+Global Adservers/TrafficStars/gmxes.com
+Global Adservers/TrafficStars/*.gmxes.com
+Global Adservers/AWDelivery/awdeliverynet.com
+Global Adservers/AWDelivery/*.awdeliverynet.com
+Global Adservers/Mayzaent/mayzaent.com
+Global Adservers/Mayzaent/*.mayzaent.com
+Global Adservers/Eunow4u/eunow4u.com
+Global Adservers/Eunow4u/*.eunow4u.com
+Global Adservers/Gentlefield/gentlefieldpattern.com
+Global Adservers/Gentlefield/*.gentlefieldpattern.com
+Global Adservers/AAAConnect/aaaconnect.info
+Global Adservers/AAAConnect/*.aaaconnect.info
+Statistics/Yandex/mc.yandex.ru
+Statistics/LiveInternet/counter.yadro.ru
+Statistics/LiveInternet/liveinternet.ru
