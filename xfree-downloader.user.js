@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Xfree Video Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      1.3.0
+// @version      1.4.0
 // @description  Adds a beautiful, transparent blur global download button to xfree.com
 // @author       Antigravity
 // @match        *://*.xfree.com/*
@@ -147,7 +147,10 @@
             }
         });
 
-        document.body.appendChild(btn);
+        // Nuxt.js apps often trap z-index context inside their root div.
+        // We must append inside the main layout to ensure visibility.
+        const container = document.getElementById('__layout') || document.getElementById('__nuxt') || document.body;
+        container.appendChild(btn);
     }
 
     // Run interval to ensure button survives Vue.js DOM wipes
