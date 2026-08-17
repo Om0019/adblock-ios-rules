@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pornhub Mobile 2-Column Grid & Bulk Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      26.0.0
+// @version      26.1.0
 // @description  Flawless multi-section handling (Most Recent + Uploaded), bulletproof infinite scroll, and bulk downloader.
 // @author       Antigravity
 // @match        *://*.pornhub.com/*
@@ -329,14 +329,15 @@
             dock.innerHTML = `
                 <div class="xv-dock-count">🛒 <span>0</span></div>
                 <div style="display:flex; gap:10px;">
-                    <button class="xv-dock-btn" id="xv-bulk-copy-btn">🚀 Copy Links</button>
+                    <button class="xv-dock-btn" id="xv-bulk-download-btn" style="padding: 8px 12px !important;">🚀 Download</button>
+                    <button class="xv-dock-btn secondary" id="xv-bulk-copy-btn" style="border: 1px solid #555 !important;">📋 Copy Only</button>
                     <button class="xv-dock-btn secondary" id="xv-bulk-clear-btn">Clear</button>
                 </div>
             `;
             
             document.body.appendChild(dock);
 
-            dock.querySelector('#xv-bulk-copy-btn').addEventListener('click', (e) => {
+            const executeCopy = (triggerShortcut) => {
                 if (selectedVideos.size === 0) return;
                 
                 const items = Array.from(selectedVideos.values());
@@ -344,20 +345,21 @@
                 
                 copyToClipboard(urls.join('\n'));
                 
-                const btn = e.target;
-                btn.textContent = '✅ Copied!';
-                showToast(`✅ Copied ${urls.length} video links! Running Shortcut...`);
+                showToast(`✅ Copied ${urls.length} video links!${triggerShortcut ? ' Running Shortcut...' : ''}`);
                 
-                // Trigger iOS Shortcut
-                setTimeout(() => {
-                    window.location.href = "shortcuts://run-shortcut?name=Download";
-                }, 100);
+                if (triggerShortcut) {
+                    setTimeout(() => {
+                        window.location.href = "shortcuts://run-shortcut?name=Download";
+                    }, 100);
+                }
 
                 setTimeout(() => {
                     dock.querySelector('#xv-bulk-clear-btn').click();
-                    btn.textContent = '🚀 Copy Links';
                 }, 2000);
-            });
+            };
+
+            dock.querySelector('#xv-bulk-download-btn').addEventListener('click', () => executeCopy(true));
+            dock.querySelector('#xv-bulk-copy-btn').addEventListener('click', () => executeCopy(false));
 
             dock.querySelector('#xv-bulk-clear-btn').addEventListener('click', () => {
                 selectedVideos.clear();
@@ -368,7 +370,6 @@
 
         if (count > 0) {
             dock.querySelector('.xv-dock-count span').textContent = count;
-            dock.querySelector('#xv-bulk-copy-btn').textContent = '🚀 Copy Links';
             dock.classList.add('show');
         } else {
             dock.classList.remove('show');
