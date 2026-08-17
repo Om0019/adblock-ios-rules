@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Xfree Video Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      1.2.0
+// @version      1.3.0
 // @description  Adds a beautiful, transparent blur global download button to xfree.com
 // @author       Antigravity
 // @match        *://*.xfree.com/*
+// @match        *://xfree.com/*
 // @grant        GM_download
 // @grant        GM_setClipboard
 // @run-at       document-idle
