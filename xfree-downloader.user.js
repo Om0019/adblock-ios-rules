@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Xfree Video Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      1.1.0
+// @version      1.2.0
 // @description  Adds a beautiful, transparent blur global download button to xfree.com
 // @author       Antigravity
 // @match        *://*.xfree.com/*
@@ -18,10 +18,11 @@
     const STYLES = `
         .xfree-dl-global-btn {
             position: fixed !important;
-            bottom: 20px !important;
-            left: 20px !important;
-            width: 50px !important;
-            height: 50px !important;
+            top: 50% !important;
+            left: 15px !important;
+            transform: translateY(-50%) !important;
+            width: 44px !important;
+            height: 44px !important;
             border-radius: 50% !important;
             background: rgba(20, 20, 20, 0.4) !important;
             backdrop-filter: blur(16px) !important;
@@ -33,15 +34,14 @@
             justify-content: center !important;
             cursor: pointer !important;
             z-index: 2147483647 !important;
-            transition: transform 0.2s ease, background 0.2s ease !important;
+            transition: background 0.2s ease !important;
         }
         .xfree-dl-global-btn:active {
-            transform: scale(0.9) !important;
             background: rgba(255, 255, 255, 0.3) !important;
         }
         .xfree-dl-global-btn svg {
-            width: 24px !important;
-            height: 24px !important;
+            width: 20px !important;
+            height: 20px !important;
             fill: none !important;
             stroke: #ffffff !important;
             stroke-width: 2.5 !important;
@@ -60,14 +60,11 @@
     }
 
     function getActiveVideo() {
-        // Find all videos
         const videos = Array.from(document.querySelectorAll('video'));
         if (videos.length === 0) return null;
 
-        // Try to find the one that is playing
         let active = videos.find(v => !v.paused && !v.ended && v.readyState > 2);
         
-        // Fallback to the one most visible in the viewport
         if (!active) {
             let maxArea = 0;
             for (const v of videos) {
@@ -84,7 +81,7 @@
         return active;
     }
 
-    function init() {
+    function ensureButtonExists() {
         injectStyles();
         
         if (document.getElementById('xfree-global-dl')) return;
@@ -92,13 +89,13 @@
         const btn = document.createElement('div');
         btn.id = 'xfree-global-dl';
         btn.className = 'xfree-dl-global-btn';
-        btn.innerHTML = `
+        btn.innerHTML = \`
             <svg viewBox="0 0 24 24">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="7 10 12 15 17 10"></polyline>
                 <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
-        `;
+        \`;
 
         btn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -121,7 +118,6 @@
                 return;
             }
 
-            // Visual feedback
             btn.style.background = 'rgba(255, 255, 255, 0.6)';
             setTimeout(() => {
                 btn.style.background = '';
@@ -153,9 +149,7 @@
         document.body.appendChild(btn);
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
+    // Run interval to ensure button survives Vue.js DOM wipes
+    setInterval(ensureButtonExists, 1000);
+    ensureButtonExists();
 })();
