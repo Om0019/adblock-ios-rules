@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Xfree Video Downloader
 // @namespace    https://github.com/Om0019/adblock-ios-rules
-// @version      1.0.0
-// @description  Adds a beautiful, transparent blur download button to videos on xfree.com
+// @version      1.1.0
+// @description  Adds a beautiful, transparent blur global download button to xfree.com
 // @author       Antigravity
 // @match        *://*.xfree.com/*
 // @grant        GM_download
@@ -13,46 +13,41 @@
 (function () {
     'use strict';
 
-    // Prevent running in iframes
     if (window.self !== window.top) return;
 
     const STYLES = `
-        .xfree-dl-btn {
-            position: absolute;
-            bottom: 30px;
-            right: 20px;
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 2147483647;
-            transition: transform 0.2s ease, background 0.2s ease;
+        .xfree-dl-global-btn {
+            position: fixed !important;
+            bottom: 20px !important;
+            left: 20px !important;
+            width: 50px !important;
+            height: 50px !important;
+            border-radius: 50% !important;
+            background: rgba(20, 20, 20, 0.4) !important;
+            backdrop-filter: blur(16px) !important;
+            -webkit-backdrop-filter: blur(16px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.4) !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            cursor: pointer !important;
+            z-index: 2147483647 !important;
+            transition: transform 0.2s ease, background 0.2s ease !important;
         }
-        .xfree-dl-btn:active {
-            transform: scale(0.9);
-            background: rgba(255, 255, 255, 0.3);
+        .xfree-dl-global-btn:active {
+            transform: scale(0.9) !important;
+            background: rgba(255, 255, 255, 0.3) !important;
         }
-        .xfree-dl-btn svg {
-            width: 24px;
-            height: 24px;
-            fill: none;
-            stroke: #ffffff;
-            stroke-width: 2.5;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
-        }
-        /* Make sure the wrapper is relatively positioned so the absolute button sits correctly */
-        .video-container, [class*="video-wrapper"] {
-            position: relative;
+        .xfree-dl-global-btn svg {
+            width: 24px !important;
+            height: 24px !important;
+            fill: none !important;
+            stroke: #ffffff !important;
+            stroke-width: 2.5 !important;
+            stroke-linecap: round !important;
+            stroke-linejoin: round !important;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)) !important;
         }
     `;
 
@@ -64,34 +59,56 @@
         (document.head || document.documentElement).appendChild(style);
     }
 
-    function createDownloadButton(videoElement) {
-        // Find a suitable wrapper to attach the button to
-        const wrapper = videoElement.parentElement;
-        if (!wrapper) return;
-        
-        // Prevent adding multiple buttons to the same wrapper
-        if (wrapper.dataset.hasXfreeDl) return;
-        wrapper.dataset.hasXfreeDl = 'true';
+    function getActiveVideo() {
+        // Find all videos
+        const videos = Array.from(document.querySelectorAll('video'));
+        if (videos.length === 0) return null;
 
-        // Ensure the wrapper can contain absolute elements safely
-        if (window.getComputedStyle(wrapper).position === 'static') {
-            wrapper.style.position = 'relative';
+        // Try to find the one that is playing
+        let active = videos.find(v => !v.paused && !v.ended && v.readyState > 2);
+        
+        // Fallback to the one most visible in the viewport
+        if (!active) {
+            let maxArea = 0;
+            for (const v of videos) {
+                const rect = v.getBoundingClientRect();
+                const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+                const visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
+                const area = visibleHeight * visibleWidth;
+                if (area > maxArea) {
+                    maxArea = area;
+                    active = v;
+                }
+            }
         }
+        return active;
+    }
+
+    function init() {
+        injectStyles();
+        
+        if (document.getElementById('xfree-global-dl')) return;
 
         const btn = document.createElement('div');
-        btn.className = 'xfree-dl-btn';
-        // Download Icon SVG
-        btn.innerHTML = \`
+        btn.id = 'xfree-global-dl';
+        btn.className = 'xfree-dl-global-btn';
+        btn.innerHTML = `
             <svg viewBox="0 0 24 24">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="7 10 12 15 17 10"></polyline>
                 <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
-        \`;
+        `;
 
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
+
+            const videoElement = getActiveVideo();
+            if (!videoElement) {
+                alert('No active video found on screen.');
+                return;
+            }
 
             let videoUrl = videoElement.src;
             if (!videoUrl) {
@@ -100,17 +117,16 @@
             }
 
             if (!videoUrl || videoUrl.startsWith('blob:')) {
-                alert('Cannot extract direct URL for this video (blob URL).');
+                alert('Cannot extract direct URL for this video (it might be a blob or hidden stream).');
                 return;
             }
 
-            // Flash animation for visual feedback
+            // Visual feedback
             btn.style.background = 'rgba(255, 255, 255, 0.6)';
             setTimeout(() => {
                 btn.style.background = '';
             }, 200);
 
-            // Copy to clipboard as fallback and trigger native download logic
             if (typeof GM_setClipboard !== 'undefined') {
                 GM_setClipboard(videoUrl);
             }
@@ -118,16 +134,15 @@
             if (typeof GM_download !== 'undefined') {
                 GM_download({
                     url: videoUrl,
-                    name: \`xfree_video_\${new Date().getTime()}.mp4\`,
+                    name: \`xfree_\${new Date().getTime()}.mp4\`,
                     onerror: () => {
                         window.open(videoUrl, '_blank');
                     }
                 });
             } else {
-                // Standard fallback
                 const a = document.createElement('a');
                 a.href = videoUrl;
-                a.download = \`xfree_video_\${new Date().getTime()}.mp4\`;
+                a.download = \`xfree_\${new Date().getTime()}.mp4\`;
                 a.target = '_blank';
                 document.body.appendChild(a);
                 a.click();
@@ -135,34 +150,7 @@
             }
         });
 
-        wrapper.appendChild(btn);
-    }
-
-    function init() {
-        injectStyles();
-        
-        // Scan for existing videos
-        document.querySelectorAll('video').forEach(createDownloadButton);
-
-        // Watch for new videos being added as the user scrolls the feed
-        const observer = new MutationObserver((mutations) => {
-            for (const mutation of mutations) {
-                if (mutation.addedNodes.length) {
-                    mutation.addedNodes.forEach(node => {
-                        if (node.nodeName === 'VIDEO') {
-                            createDownloadButton(node);
-                        } else if (node.querySelectorAll) {
-                            node.querySelectorAll('video').forEach(createDownloadButton);
-                        }
-                    });
-                }
-            }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
+        document.body.appendChild(btn);
     }
 
     if (document.readyState === 'loading') {
