@@ -1,51 +1,26 @@
-# AdBlock Filter & iOS DNS Rules
+# Adblock iOS Rules
 
-Custom adblocking rules and EasyList-compatible filter subscription for **x-video.tube** and related adult ad networks.
+A collection of highly optimized adblock rules for iOS, designed to provide the best browsing experience without affecting website loading or layout.
 
----
+## Structure
 
-## 🎯 1. EasyList Filter Subscription (uBlock Origin, AdGuard, Safari, Brave)
+The rules are divided into separate lists so you can enable or disable them independently depending on your needs:
 
-This filter list blocks network requests **AND** hides in-page banner elements, fake buttons, and popunder triggers.
+* **[general_ads.txt](general_ads.txt)**
+  Safely blocks standard ad servers and trackers. Focuses on not breaking page layouts.
 
-### 📥 Direct Subscription URL
-```
-https://raw.githubusercontent.com/Om0019/adblock-ios-rules/main/filters.txt
-```
+* **[popups_and_redirects.txt](popups_and_redirects.txt)**
+  Blocks aggressive ads that open in new tabs (pop-unders), steal focus, or forcibly redirect the current page.
 
-### 🛠️ How to Subscribe:
-- **uBlock Origin**: Dashboard > **Filter lists** > Scroll to bottom > **Import** > Paste URL > **Apply changes**.
-- **AdGuard (iOS / Mac / Windows / Android)**: Settings > **Filters** > **Custom** > **Add custom filter** > Paste URL.
-- **Brave Browser**: `brave://settings/shields/filters` > **Add custom filter list** > Paste URL.
-- **AdBlock Plus**: Settings > **Advanced** > **Filter lists** > **Add a filter list via URL**.
+* **[anti_adblock.txt](anti_adblock.txt)**
+  Prevents sites from detecting your adblocker. It includes defusers to trick scripts into thinking ads are loading normally, and hides common anti-adblock warning modals.
 
----
+## How to Use
 
-## 📱 2. iOS AdBlock DNS Proxy Rules (FutureMind AdBlock)
+If you are using an iOS adblocker that supports custom filter lists (like **AdGuard for iOS** or **uBlock Origin** through Orion Browser), you can add the raw links to these text files as Custom Filters:
 
-For network-wide DNS-level blocking on iOS via the AdBlock DNS proxy.
+1. Copy the RAW URL of the list you want to use.
+2. Go to your Adblocker's settings -> Custom Filters / Filter Lists.
+3. Add the URL and enable it.
 
-### 📥 DNS Rules Raw URL
-```
-https://raw.githubusercontent.com/Om0019/adblock-ios-rules/main/ios-dns-rules.adblock
-```
-
-### 🛠️ How to Import:
-1. Open **AdBlock** on iOS.
-2. Go to **Settings** → **Import DNS rules**.
-3. Paste the URL above and import to the **`0.0.0.0, ::`** group.
-
----
-
-## 🛡️ Summary of Blocked Targets
-
-| Target Network / Element | Type | Purpose |
-| :--- | :--- | :--- |
-| `magsrv.com`, `happyleafmotion.com`, `exacdn.com` | Network | ExoClick banner / video ads |
-| `gmxes.com` | Network | TrafficStars popunder / push notifications |
-| `awdeliverynet.com` | Network | VAST video pre-roll ad delivery |
-| `mayzaent.com`, `gentlefieldpattern.com`, `eunow4u.com` | Network | Smartpop / CTA redirect links |
-| `mc.yandex.ru`, `counter.yadro.ru` | Network | User tracking & telemetry |
-| `.xv-topbar-flare-final`, `.top-sites-bar` | Cosmetic | Top sticky promotional banner bars |
-| `li.clkbat`, `.tg-holder` | Cosmetic | Fake menu buttons & telegram overlays |
-| `.fancybox-overlay-fixed` | Cosmetic | Pop-up modal dialogs |
+*Note: These lists use standard EasyList / Adblock Plus / uBlock Origin syntax.*

@@ -1,0 +1,27 @@
+[Adblock Plus 2.0]
+! Title: Pop-ups, Pop-unders & Redirects
+! Description: Blocks aggressive ads that open in new tabs, steal focus, or redirect the current page.
+
+! --- Global Popup Blocking ---
+! Blocks new tabs/windows opened by third-party scripts
+*$popup,third-party
+
+! --- Aggressive Pop-under Networks ---
+||popads.net^$popup,third-party
+||propellerads.com^$popup,third-party
+||onclickads.net^$popup,third-party
+||adcash.com^$popup,third-party
+||exoclick.com^$popup,third-party
+||yllix.com^$popup,third-party
+||popcash.net^$popup,third-party
+
+! --- Scriptlet Defusers ---
+! These inject safe scriptlets to prevent the site from overriding window.open
+! Compatible with uBlock Origin / AdGuard on iOS
+#%#//scriptlet("window.open-defuser")
+#%#//scriptlet("abort-on-property-write", "window.open")
+
+! --- Block Standard Popunder Scripts ---
+/popunder.js$script
+/popup.js$script
+/tabunder.js$script

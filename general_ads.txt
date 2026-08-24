@@ -1,0 +1,29 @@
+[Adblock Plus 2.0]
+! Title: General Ads & Trackers
+! Description: Safely blocks standard ad servers and trackers without breaking page layouts.
+
+! --- Major Ad Networks ---
+||doubleclick.net^
+||googleadservices.com^
+||googlesyndication.com^
+||amazon-adsystem.com^
+||criteo.com^
+||adnxs.com^
+||taboola.com^
+||outbrain.com^
+||advertising.com^
+||rubiconproject.com^
+
+! --- Trackers & Analytics ---
+||google-analytics.com^$script
+||scorecardresearch.com^$script
+||quantserve.com^$script
+
+! --- Safe Cosmetic Hiding ---
+! These hide standard ad containers without disrupting the page structure.
+##.ad-banner
+##.ad-container
+##.advertisement
+##.sponsored-post
+##[id^="google_ads_"]
+##[id^="ad-wrapper"]

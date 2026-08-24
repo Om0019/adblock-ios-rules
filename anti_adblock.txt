@@ -1,0 +1,30 @@
+[Adblock Plus 2.0]
+! Title: Anti-Adblock Defuser
+! Description: Prevents sites from detecting your adblocker and locking you out of content.
+
+! --- Hide Anti-Adblock Modals ---
+##.anti-adblock-modal
+##.adblock-warning
+##.detect-adblock
+###adblock-notice
+##div[id^="adblock_"]
+##.fc-ab-root
+##.fc-ab-dialog
+
+! --- Un-hide content hidden by Anti-Adblock ---
+! Sometimes sites hide the body when they detect an adblocker
+##body:style(overflow: auto !important;)
+##body:style(position: static !important;)
+
+! --- Defuse Detection Scripts ---
+! These inject variables into the page to trick detection scripts into thinking ads are loading normally.
+#%#//scriptlet("abp-resource", "adblock-bypass")
+#%#//scriptlet("set-constant", "adblock", "false")
+#%#//scriptlet("set-constant", "isAdBlockActive", "false")
+#%#//scriptlet("set-constant", "adblocker", "false")
+#%#//scriptlet("set-constant", "_ab", "false")
+
+! --- Block Known Detection Scripts ---
+||blockadblock.com^$script
+||fuckadblock.js$script
+/detect-adblock.js$script
