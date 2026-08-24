@@ -14,6 +14,8 @@
 ||exoclick.com^$popup,third-party
 ||yllix.com^$popup,third-party
 ||popcash.net^$popup,third-party
+||magsrv.com^$popup,third-party
+||gmxes.com^$popup,third-party
 
 ! --- Scriptlet Defusers ---
 ! These inject safe scriptlets to prevent the site from overriding window.open

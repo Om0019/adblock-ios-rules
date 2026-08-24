@@ -13,6 +13,8 @@
 ||outbrain.com^
 ||advertising.com^
 ||rubiconproject.com^
+||magsrv.com^
+||gmxes.com^
 
 ! --- Trackers & Analytics ---
 ||google-analytics.com^$script
