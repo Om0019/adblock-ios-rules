@@ -11,6 +11,19 @@
 ###cookie-law-info-bar
 ###cookie-notice
 ##.cc-window
+! OneTrust
+###onetrust-banner-sdk
+###onetrust-consent-sdk
+! Cookiebot
+###CybotCookiebotDialog
+! Quantcast Choice
+##.qc-cmp2-container
+! Didomi
+###didomi-host
+! TrustArc
+###consent-banner
+###truste-consent-track
+! Sourcepoint / generic CMPs
 ##.optanon-alert-box-wrapper
 ##.cmp-container
 ##.fc-consent-root
@@ -20,6 +33,7 @@
 ! Generic Safari Smart App Banners
 ##.apple-itunes-app
 ##.SmartBanner
+##.smart-app-banner
 ! Reddit App Banners
 ##.XPromoPopup
 ##.XPromoBottomBar
@@ -28,6 +42,10 @@ reddit.com##.prompt
 ! Quora App Banners
 quora.com##.AppBanner
 quora.com##.q-box.qu-bg--gray_10
+! YouTube "Open app" banner
+youtube.com##ytm-mealbar-promo-renderer
+! Pinterest
+pinterest.com##.loginRequiredWrapper
 
 ! --- Newsletter & Login Walls ---
 ! Hides annoying overlays that darken the screen begging for emails.
@@ -35,3 +53,4 @@ quora.com##.q-box.qu-bg--gray_10
 ##.subscribe-overlay
 ##.gate-overlay
 ##.paywall-overlay
+##.modal-overlay[class*="newsletter"]

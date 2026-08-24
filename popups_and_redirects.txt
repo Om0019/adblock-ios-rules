@@ -1,12 +1,15 @@
 [Adblock Plus 2.0]
 ! Title: Pop-ups, Pop-unders & Redirects
 ! Description: Blocks aggressive ads that open in new tabs, steal focus, or redirect the current page.
+! Note: The pop-under/malvertising networks (magsrv, gmxes, exdynsrv, exosrv, opoxv,
+! exacdn, pemsrv, happyleafmotion) are blocked at the domain level in general_ads.txt,
+! which already covers their popups — no need to duplicate them here.
 
 ! --- Global Popup Blocking ---
 ! Blocks new tabs/windows opened by third-party scripts
 *$popup,third-party
 
-! --- Aggressive Pop-under Networks ---
+! --- Aggressive Pop-under Networks (not already domain-blocked) ---
 ||popads.net^$popup,third-party
 ||propellerads.com^$popup,third-party
 ||onclickads.net^$popup,third-party
@@ -14,19 +17,14 @@
 ||exoclick.com^$popup,third-party
 ||yllix.com^$popup,third-party
 ||popcash.net^$popup,third-party
-||magsrv.com^$popup,third-party
-||gmxes.com^$popup,third-party
-||exdynsrv.com^$popup,third-party
-||exosrv.com^$popup,third-party
-||opoxv.com^$popup,third-party
-||exacdn.com^$popup,third-party
-||pemsrv.com^$popup,third-party
-||happyleafmotion.com^$popup,third-party
+||juicyads.com^$popup,third-party
+||trafficjunky.net^$popup,third-party
+||adsterra.com^$popup,third-party
 
 ! --- Scriptlet Defusers ---
 ! These inject safe scriptlets to prevent the site from overriding window.open
-! Compatible with uBlock Origin / AdGuard on iOS
-#%#//scriptlet("window.open-defuser")
+! Uses AdGuard's scriptlet names (compatible with AdGuard for iOS).
+#%#//scriptlet("prevent-window-open")
 #%#//scriptlet("abort-on-property-write", "window.open")
 
 ! --- Block Standard Popunder Scripts ---

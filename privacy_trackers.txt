@@ -9,22 +9,44 @@
 ||analytics.tiktok.com^
 ||snapchat.com/tr/$third-party
 ||pixel.wp.com^
+||ads-twitter.com^
+||pinimg.com/ct/$third-party
 
 ! --- Behavioral Analytics & Heatmaps ---
 ! These track where you tap and how far you scroll. Blocking them saves significant battery.
 ||hotjar.com^$script
 ||c.clarity.ms^$script
-||sentry.io^$script
-||newrelic.com^$script
+||fullstory.com^$script
+||mouseflow.com^$script
+||crazyegg.com^$script
+||luckyorange.com^$script
+||inspectlet.com^$script
+||heapanalytics.com^$script
+
+! --- Third-Party Error/Performance & Marketing Analytics ---
+||sentry.io^$script,third-party
+||newrelic.com^$script,third-party
 ||branch.io^$script
 ||segment.com^$script
 ||mixpanel.com^$script
 ||amplitude.com^$script
 ||appsflyer.com^$script
-||bugsnag.com^$script
+||bugsnag.com^$script,third-party
+||kissmetrics.io^$script
+||mparticle.com^$script
+
+! --- Ad-Tech Identity & Data Brokers ---
+||demdex.net^
+||everesttech.net^
+||rlcdn.com^
+||adsymptotic.com^
+||agkn.com^
 
 ! --- CNAME Cloaking Trackers ---
-! Blocks common first-party paths used to disguise third-party tracking
+! Note: native Safari content blockers cannot resolve DNS/CNAME chains, so they
+! can't detect cloaking at the network level. These rules instead match the
+! well-known first-party URL *paths* that cloaked trackers are typically proxied
+! through, which catches the common cases even without CNAME visibility.
 /api/track/$third-party
 /metrics/event$third-party
 /analytics.js?id=*$third-party
