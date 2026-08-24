@@ -43,4 +43,19 @@ https://raw.githubusercontent.com/Om0019/adblock-ios-rules/main/privacy_trackers
 3. Paste a URL from above and hit Next.
 4. Repeat for all 5 URLs. (The app will automatically sync updates from this repository).
 
-*Note: These lists use standard EasyList / Adblock Plus / uBlock Origin syntax.*
+## Compatibility Notes
+
+- These lists use standard EasyList / Adblock Plus / uBlock Origin syntax, plus a
+  small number of **AdGuard scriptlets** (`#%#//scriptlet(...)`) and **ExtendedCss**
+  selectors (`#?#`).
+- Scriptlets and ExtendedCss require an engine that supports them — **AdGuard for
+  iOS** does. Apple's native Safari Content Blocker format (used by lighter-weight
+  blockers) does **not** support scriptlets, `:style()`, or `#?#` rules; those
+  lines are simply ignored by such engines rather than breaking anything.
+- Native Safari content blockers also can't see DNS/CNAME resolution, so true
+  CNAME-cloaking detection isn't possible client-side in that mode — see the note
+  in `privacy_trackers.txt` for how this list approximates it via URL paths instead.
+
+*Note: This project blocks by domain and known ad-request patterns, not by
+inspecting page content, so it will not catch every ad on every site — no
+list can. Report false positives (broken pages) or missed ads via an issue.*

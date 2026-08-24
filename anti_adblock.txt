@@ -11,18 +11,15 @@
 ##.fc-ab-root
 ##.fc-ab-dialog
 
-! --- Un-hide content hidden by Anti-Adblock ---
-! Sometimes sites hide the body when they detect an adblocker
-##body:style(overflow: auto !important;)
-##body:style(position: static !important;)
-
 ! --- Defuse Detection Scripts ---
-! These inject variables into the page to trick detection scripts into thinking ads are loading normally.
-#%#//scriptlet("abp-resource", "adblock-bypass")
+! These inject values that scripts read to check whether an adblocker is active,
+! tricking the check into believing ads loaded normally.
+! Uses AdGuard's "set-constant" scriptlet (compatible with AdGuard for iOS).
 #%#//scriptlet("set-constant", "adblock", "false")
 #%#//scriptlet("set-constant", "isAdBlockActive", "false")
 #%#//scriptlet("set-constant", "adblocker", "false")
 #%#//scriptlet("set-constant", "_ab", "false")
+#%#//scriptlet("set-constant", "canRunAds", "true")
 
 ! --- Block Known Detection Scripts ---
 ||blockadblock.com^$script
@@ -40,13 +37,16 @@
 /banner.js$script,redirect=noopjs
 
 ! --- Server-Side Ad Insertion (SSAI) Defusers ---
-! SSAI stitches ads directly into the video stream. These scriptlets intercept the video playlist JSON and prune out ad segments on the fly.
+! SSAI stitches ads directly into the video stream manifest/playlist JSON.
+! These scriptlets prune known ad-marker keys out of that JSON on the fly.
 #%#//scriptlet("json-prune", "adBreak")
 #%#//scriptlet("json-prune", "ads")
 #%#//scriptlet("json-prune", "sponsored")
 
 ! --- Shadow DOM Piercing ---
 ! Pierces through ShadowRoot barriers to hide ads that standard CSS selectors cannot reach.
+! Requires an engine with ExtendedCss support (e.g. AdGuard); native Safari
+! content blockers do not support this syntax.
 #?#.ad-slot
 #?#.sponsored-content
 #?#ad-container

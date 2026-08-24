@@ -2,17 +2,42 @@
 ! Title: General Ads & Trackers
 ! Description: Safely blocks standard ad servers and trackers without breaking page layouts.
 
-! --- Major Ad Networks ---
+! --- Major Ad Networks & Exchanges ---
 ||doubleclick.net^
 ||googleadservices.com^
 ||googlesyndication.com^
+||google-analytics.com^$script
+||googletagservices.com^
 ||amazon-adsystem.com^
 ||criteo.com^
+||criteo.net^
 ||adnxs.com^
+||adsrvr.org^
 ||taboola.com^
 ||outbrain.com^
 ||advertising.com^
 ||rubiconproject.com^
+||pubmatic.com^
+||openx.net^
+||casalemedia.com^
+||contextweb.com^
+||adform.net^
+||smartadserver.com^
+||media.net^
+||adroll.com^
+||bidswitch.net^
+||mgid.com^
+||revcontent.com^
+||sharethrough.com^
+||teads.tv^
+||indexww.com^
+||adcolony.com^
+||applovin.com^$script
+||moatads.com^
+||doubleverify.com^
+||adsafeprotected.com^
+
+! --- Pop-under / Malvertising Networks ---
 ||magsrv.com^
 ||gmxes.com^
 ||exdynsrv.com^
@@ -23,9 +48,10 @@
 ||happyleafmotion.com^
 
 ! --- Trackers & Analytics ---
-||google-analytics.com^$script
 ||scorecardresearch.com^$script
 ||quantserve.com^$script
+||chartbeat.com^$script
+||parsely.com^$script
 
 ! --- Safe Cosmetic Hiding ---
 ! These hide standard ad containers without disrupting the page structure.
@@ -39,14 +65,16 @@
 ! --- In-Video Ads (Pre-rolls) ---
 ! Blocks VAST/VPAID XML requests used by video players (JWPlayer, VideoJS) to inject pre-roll video ads
 ||*vast.xml$xmlhttprequest
+||*vast2.xml$xmlhttprequest
+||*vast3.xml$xmlhttprequest
 ||*vpaid.js$script
-/vast3.xml
-/vast2.xml
 ||imasdk.googleapis.com^
+||pubads.g.doubleclick.net^
 
-! --- WebSockets Ad Delivery ---
-! Blocks ads and tracking data streamed over persistent WebSocket connections
-||*^$websocket,third-party,domain=~twitch.tv|~discord.com|~slack.com
+! --- Tracker WebSocket Delivery ---
+! Targeted blocks for known ad/tracking WebSocket endpoints (safer than a blanket
+! websocket block, which would break chat widgets, live tickers, and other
+! legitimate real-time site features).
 ||adserver.*^$websocket
 ||tracker.*^$websocket
 
