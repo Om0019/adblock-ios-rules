@@ -36,12 +36,69 @@ Blocks invisible trackers, social media widgets (like Meta/Facebook Pixel), and 
 https://raw.githubusercontent.com/Om0019/adblock-ios-rules/main/privacy_trackers.txt
 ```
 
+## Recommended Base Lists (Add These Too)
+
+This repo is a small, hand-curated supplement — not a replacement for the
+major community-maintained filter lists. For real coverage, add these
+alongside the lists above. All URLs below were verified live.
+
+### EasyList — the base ad-blocking list nearly every blocker builds on
+```text
+https://easylist.to/easylist/easylist.txt
+```
+
+### EasyPrivacy — the companion tracker/privacy list
+```text
+https://easylist.to/easylist/easyprivacy.txt
+```
+
+### uBlock Origin Filters — extra rules/heuristics beyond EasyList
+```text
+https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt
+```
+
+### uBlock Origin Privacy Filters
+```text
+https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/privacy.txt
+```
+
+### uBlock Origin Badware Risks — known malware/scam/PUP domains
+```text
+https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/badware.txt
+```
+
+### AdGuard Base Filter
+```text
+https://filters.adtidy.org/extension/safari/filters/2.txt
+```
+
+### AdGuard Tracking Protection Filter
+```text
+https://filters.adtidy.org/extension/safari/filters/3.txt
+```
+
+### AdGuard Mobile Ads Filter
+```text
+https://filters.adtidy.org/extension/safari/filters/11.txt
+```
+
+### AdGuard Annoyances Filter
+```text
+https://filters.adtidy.org/extension/safari/filters/14.txt
+```
+
+*Adding both EasyList and AdGuard's base filter, or both uBO's and AdGuard's
+annoyances lists, will produce some overlap — that's expected and harmless;
+duplicate rules are simply redundant, not conflicting.*
+
 ## How to Setup (AdGuard for iOS)
 
 1. Open the AdGuard app and go to **Protection** -> **Filters** -> **Custom**.
 2. Tap **Add custom filter**.
-3. Paste a URL from above and hit Next.
-4. Repeat for all 5 URLs. (The app will automatically sync updates from this repository).
+3. Paste a URL from above (the 5 lists in this repo, plus whichever base
+   lists you want from the section above) and hit Next.
+4. Repeat for each URL. (The app will automatically sync updates from this
+   repository and from the upstream lists.)
 
 ## Compatibility Notes
 
