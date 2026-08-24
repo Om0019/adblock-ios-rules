@@ -28,3 +28,6 @@
 ||blockadblock.com^$script
 ||fuckadblock.js$script
 /detect-adblock.js$script
+
+! --- Site-Specific Clickjacker Hooks (e.g. ipaomtk.com) ---
+##.hook7s

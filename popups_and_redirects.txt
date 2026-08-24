@@ -25,3 +25,9 @@
 /popunder.js$script
 /popup.js$script
 /tabunder.js$script
+
+! --- Site-Specific Popunder Scripts (e.g. ipaomtk.com) ---
+||cloudfront.net/*wbbsd=*$script,third-party
+||cloudfront.net/*wbbcd=*$script,third-party
+||kcbbwymp1bhlf.cloudfront.net^$script
+||dcbbwymplbhlf.cloudfront.net^$script
