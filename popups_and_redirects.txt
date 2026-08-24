@@ -16,6 +16,12 @@
 ||popcash.net^$popup,third-party
 ||magsrv.com^$popup,third-party
 ||gmxes.com^$popup,third-party
+||exdynsrv.com^$popup,third-party
+||exosrv.com^$popup,third-party
+||opoxv.com^$popup,third-party
+||exacdn.com^$popup,third-party
+||pemsrv.com^$popup,third-party
+||happyleafmotion.com^$popup,third-party
 
 ! --- Scriptlet Defusers ---
 ! These inject safe scriptlets to prevent the site from overriding window.open

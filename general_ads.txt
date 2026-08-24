@@ -15,6 +15,12 @@
 ||rubiconproject.com^
 ||magsrv.com^
 ||gmxes.com^
+||exdynsrv.com^
+||exosrv.com^
+||opoxv.com^
+||exacdn.com^
+||pemsrv.com^
+||happyleafmotion.com^
 
 ! --- Trackers & Analytics ---
 ||google-analytics.com^$script
