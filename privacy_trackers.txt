@@ -22,3 +22,14 @@
 ||amplitude.com^$script
 ||appsflyer.com^$script
 ||bugsnag.com^$script
+
+! --- CNAME Cloaking Trackers ---
+! Blocks common first-party paths used to disguise third-party tracking
+/api/track/$third-party
+/metrics/event$third-party
+/analytics.js?id=*$third-party
+
+! --- WebRTC & Audio Fingerprinting ---
+! Intercepts WebRTC local IP leaks and AudioContext fingerprinting
+#%#//scriptlet("prevent-webrtc")
+#%#//scriptlet("abort-on-property-read", "AudioContext")

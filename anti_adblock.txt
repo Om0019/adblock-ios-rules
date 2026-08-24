@@ -38,3 +38,15 @@
 /advertisement.js$script,redirect=noopjs
 /ad.js$script,redirect=noopjs
 /banner.js$script,redirect=noopjs
+
+! --- Server-Side Ad Insertion (SSAI) Defusers ---
+! SSAI stitches ads directly into the video stream. These scriptlets intercept the video playlist JSON and prune out ad segments on the fly.
+#%#//scriptlet("json-prune", "adBreak")
+#%#//scriptlet("json-prune", "ads")
+#%#//scriptlet("json-prune", "sponsored")
+
+! --- Shadow DOM Piercing ---
+! Pierces through ShadowRoot barriers to hide ads that standard CSS selectors cannot reach.
+#?#.ad-slot
+#?#.sponsored-content
+#?#ad-container

@@ -37,3 +37,16 @@
 /vast3.xml
 /vast2.xml
 ||imasdk.googleapis.com^
+
+! --- WebSockets Ad Delivery ---
+! Blocks ads and tracking data streamed over persistent WebSocket connections
+||*^$websocket,third-party,domain=~twitch.tv|~discord.com|~slack.com
+||adserver.*^$websocket
+||tracker.*^$websocket
+
+! --- Adblock Recovery / "Acceptable Ads" ---
+! Blocks services that try to serve ads even when an adblocker is active
+||blockthrough.com^
+||pagefair.com^
+||admiral.com^
+||ad-delivery.net^
