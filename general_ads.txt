@@ -29,3 +29,11 @@
 ##.sponsored-post
 ##[id^="google_ads_"]
 ##[id^="ad-wrapper"]
+
+! --- In-Video Ads (Pre-rolls) ---
+! Blocks VAST/VPAID XML requests used by video players (JWPlayer, VideoJS) to inject pre-roll video ads
+||*vast.xml$xmlhttprequest
+||*vpaid.js$script
+/vast3.xml
+/vast2.xml
+||imasdk.googleapis.com^

@@ -1,0 +1,37 @@
+[Adblock Plus 2.0]
+! Title: Annoyances, Cookies & App Banners
+! Description: Hides cookie consent popups, "Open in App" banners, and newsletter overlays.
+
+! --- Cookie Consent & GDPR Banners ---
+! These rules forcefully hide the massive cookie notices that require taps.
+##.cookie-banner
+##.cookie-notice
+##.cookie-popup
+##.cookie-consent
+###cookie-law-info-bar
+###cookie-notice
+##.cc-window
+##.optanon-alert-box-wrapper
+##.cmp-container
+##.fc-consent-root
+##[id^="sp_message_container"]
+
+! --- "Open in App" Banners ---
+! Generic Safari Smart App Banners
+##.apple-itunes-app
+##.SmartBanner
+! Reddit App Banners
+##.XPromoPopup
+##.XPromoBottomBar
+reddit.com##.bottom-nav
+reddit.com##.prompt
+! Quora App Banners
+quora.com##.AppBanner
+quora.com##.q-box.qu-bg--gray_10
+
+! --- Newsletter & Login Walls ---
+! Hides annoying overlays that darken the screen begging for emails.
+##.newsletter-popup
+##.subscribe-overlay
+##.gate-overlay
+##.paywall-overlay

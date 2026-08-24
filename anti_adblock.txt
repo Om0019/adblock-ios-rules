@@ -31,3 +31,10 @@
 
 ! --- Site-Specific Clickjacker Hooks (e.g. ipaomtk.com) ---
 ##.hook7s
+
+! --- Global Anti-Adblock Bait ---
+! Replaces standard ad scripts with blank responses so detectors think ads successfully loaded
+/ads.js$script,redirect=noopjs
+/advertisement.js$script,redirect=noopjs
+/ad.js$script,redirect=noopjs
+/banner.js$script,redirect=noopjs

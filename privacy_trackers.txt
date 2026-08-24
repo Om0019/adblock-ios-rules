@@ -1,0 +1,24 @@
+[Adblock Plus 2.0]
+! Title: Privacy & Anti-Tracking
+! Description: Blocks invisible trackers, analytics, and social media widgets that slow down devices.
+
+! --- Social Media Trackers & Pixels ---
+||connect.facebook.net^$script,third-party
+||facebook.com/tr/$third-party
+||analytics.twitter.com^
+||analytics.tiktok.com^
+||snapchat.com/tr/$third-party
+||pixel.wp.com^
+
+! --- Behavioral Analytics & Heatmaps ---
+! These track where you tap and how far you scroll. Blocking them saves significant battery.
+||hotjar.com^$script
+||c.clarity.ms^$script
+||sentry.io^$script
+||newrelic.com^$script
+||branch.io^$script
+||segment.com^$script
+||mixpanel.com^$script
+||amplitude.com^$script
+||appsflyer.com^$script
+||bugsnag.com^$script
