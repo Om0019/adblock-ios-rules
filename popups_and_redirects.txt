@@ -4,10 +4,11 @@
 ! Note: The pop-under/malvertising networks (magsrv, gmxes, exdynsrv, exosrv, opoxv,
 ! exacdn, pemsrv, happyleafmotion) are blocked at the domain level in general_ads.txt,
 ! which already covers their popups — no need to duplicate them here.
-
-! --- Global Popup Blocking ---
-! Blocks new tabs/windows opened by third-party scripts
-*$popup,third-party
+! Note: A blanket "*$popup,third-party" rule plus generic window.open-blocking
+! scriptlets were removed from this list. They blocked *any* window.open call
+! site-wide, which breaks legitimate popup flows such as "Sign in with Google"
+! OAuth popups and image/thumbnail lightbox viewers. The domain-specific
+! $popup rules below still cover known malvertising networks.
 
 ! --- Aggressive Pop-under Networks (not already domain-blocked) ---
 ||popads.net^$popup,third-party
@@ -20,12 +21,6 @@
 ||juicyads.com^$popup,third-party
 ||trafficjunky.net^$popup,third-party
 ||adsterra.com^$popup,third-party
-
-! --- Scriptlet Defusers ---
-! These inject safe scriptlets to prevent the site from overriding window.open
-! Uses AdGuard's scriptlet names (compatible with AdGuard for iOS).
-#%#//scriptlet("prevent-window-open")
-#%#//scriptlet("abort-on-property-write", "window.open")
 
 ! --- Block Standard Popunder Scripts ---
 /popunder.js$script
