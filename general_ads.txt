@@ -2,6 +2,18 @@
 ! Title: General Ads & Trackers
 ! Description: Safely blocks standard ad servers and trackers without breaking page layouts.
 
+! --- Compatibility Allowlist ---
+! Never block Google's core login/session and image/thumbnail CDN domains.
+! These are frequently swept up by overly broad "google*" ad-network rules
+! elsewhere and breaking them takes out "Sign in with Google" and image
+! thumbnails across many unrelated sites.
+@@||accounts.google.com^
+@@||apis.google.com^
+@@||gstatic.com^
+@@||googleusercontent.com^
+@@||ytimg.com^
+@@||ggpht.com^
+
 ! --- Major Ad Networks & Exchanges ---
 ||doubleclick.net^
 ||googleadservices.com^
