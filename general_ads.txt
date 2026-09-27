@@ -83,6 +83,18 @@
 ||imasdk.googleapis.com^
 ||pubads.g.doubleclick.net^
 
+! --- Dailymotion Ads & Telemetry ---
+! dmxleo is Dailymotion's own "ad director" endpoint (confirmed by a comment
+! in Dailymotion's player bundle: "preconnect to ad director to have faster
+! ad start") — this is what fires the pre/mid-roll ad requests.
+! dm-event.net is Dailymotion's player event-bus/telemetry domain, split off
+! from dailymotion.com specifically to dodge blanket domain-based blocking.
+! Note: some Dailymotion videos use server-side ad insertion (SSAI), which
+! stitches ads directly into the video stream — no client-side network rule
+! can strip those out (see the SSAI note in the README/privacy_trackers.txt).
+||dmxleo.dailymotion.com^
+||dm-event.net^
+
 ! --- Tracker WebSocket Delivery ---
 ! Targeted blocks for known ad/tracking WebSocket endpoints (safer than a blanket
 ! websocket block, which would break chat widgets, live tickers, and other
